@@ -1,0 +1,54 @@
+(dp0
+S'ALG_DESC'
+p1
+VFind shortest paths and costs from a starting points layer on a specially crafted transit layer.
+p2
+sS'Max_walking_distance'
+p3
+VWalking distance from the starting object centroid to each transit node, in the unit of the transit layer.
+p4
+sS'Name'
+p5
+VMust be unique. Used to identify to which object the result point is linked to.
+p6
+sS'ALG_CREATOR'
+p7
+VChourmo - v1
+p8
+sS'Starts'
+p9
+VStarting objects layer. The centroid of each feature wil be used.
+p10
+sS'Results'
+p11
+VLayer of points, each for each accessible node from a start point.\u000a. "nodeid" "from" or "to" node value\u000a. "startName" name of the corresponding starting point\u000a. cost : total time on the shortest path\u000a. "transfers": total transfers\u000a."transfCost": time spent in transfers\u000a."modes": list of mode types used\u000a. "isClosest": 'Y' if this point has the smallest cost of all nodes with the same "nodeid"\u000a. "driveCost": if park and ride algorythm used, time spent in a car
+p12
+sS'Cost'
+p13
+V"cost" column, contains time in minutes from one stop to the other.
+p14
+sS'Transit_network'
+p15
+VTransit layer, must be generated from the scripts.
+p16
+sS'Max_waiting_time'
+p17
+VWaiting time is the minimum value between this parameter and half the frequency of each transit node inside the walking distance.
+p18
+sS'Max_total_time'
+p19
+VLimit of total time in result
+p20
+sS'Max_transfers'
+p21
+VLimit of transfers between transit lines. Doesn't take into account walking access and park-ride.
+p22
+sS'Park_ride'
+p23
+VIf the transit layer contains a road sub-network, use special algorythm. If "no", the subnetwork won't be used.
+p24
+sS'ALG_HELP_CREATOR'
+p25
+VChourmo - v1
+p26
+s.

@@ -1,0 +1,70 @@
+(dp0
+S'ALG_DESC'
+p1
+VFind shortest paths and costs from a starting points layer on a road layer.
+p2
+sS'Max_total_time'
+p3
+VLimit of total time in result
+p4
+sS'Name'
+p5
+VMust be unique. Used to identify to which object the result point is linked to.
+p6
+sS'Start_speed'
+p7
+VUsed to calculate the time from the starting point to the road node.
+p8
+sS'Toll_cost'
+p9
+VPrice of toll
+p10
+sS'Starts'
+p11
+VStarting objects layer. The centroid of each feature wil be used.
+p12
+sS'Start_distance'
+p13
+VDistance from the starting object centroid to each road node, in the unit of the road layer.
+p14
+sS'Results'
+p15
+VLayer of points, each for each accessible node from a start point.\u000a."nodeid" : from or to value of the road network\u000a. "startName" : from the "Name" column of the start layer\u000a. total cost on the shortest path\u000a."isClosest" : 'Y' if this point has the smallest cost of all nodes with the same "nodeid"\u000a.subtotal value if calculated
+p16
+sS'ALG_CREATOR'
+p17
+VChourmo - v1
+p18
+sS'Cost'
+p19
+VValue to go from the starting point to the ending point of each feature.
+p20
+sS'Road_network'
+p21
+VLayer for shortest path, it must contain "from", "to" and "dir" columns.
+p22
+sS'Toll'
+p23
+VTrue if toll algorithm must be used, in order to used free roads if cost less than Time Value
+p24
+sS'Time_value'
+p25
+VValue of time in Toll_cost / Cost (Euros in minutes for instance). Threshold under which a toll road will not be used.
+p26
+sS'Subtotal_cost'
+p27
+VColumn to add on shortest path
+p28
+sS'Reverse_cost'
+p29
+VValue to go from the ending point to the starting point of each feature. May be the same as the 'cost' column.
+p30
+sS'Subtotal'
+p31
+VOption to add a secondary value on shortest path (for example the total toll or path length)
+p32
+sS'ALG_HELP_CREATOR'
+p33
+VChourmo - v1
+p34
+s.
