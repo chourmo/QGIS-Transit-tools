@@ -1,0 +1,41 @@
+(dp0
+S'Zones'
+p1
+VPolygon layer
+p2
+sS'ALG_DESC'
+p3
+VCount the number of routes and stops in a zone, on a day or in time periods.
+p4
+sS'Hour_details'
+p5
+V"Yes" to count in each time step in the day.
+p6
+sS'Buffer'
+p7
+VBuffer around each polygon.If equals to zero, the polygon will be used.
+p8
+sS'Step_in_minutes'
+p9
+V
+p10
+sS'Results'
+p11
+VLayer of polygons:\u000a."route" : number of unique routes in day or time range,\u000a."freq" : number of unique stops in day or time range. Add only one frequency for each route in the buffer, \u000a. "amplitude" : if no hour details, number of hours with at least one stop\u000a. "start" and "stop": time of start and stop for each polygon.
+p12
+sS'GTFS_folder'
+p13
+g10
+sS'ALG_CREATOR'
+p14
+VChourmo - v1
+p15
+sS'ALG_HELP_CREATOR'
+p16
+VChourmo - v1
+p17
+sS'Day'
+p18
+VDay in DD/MM/YYYY format. This day must exist in the calendar periods of the GTFS folder.
+p19
+s.
