@@ -1,0 +1,41 @@
+(dp0
+S'ALG_DESC'
+p1
+VBuilt a transit network from a GTFS folder
+p2
+sS'Smooth_treshold'
+p3
+Vin minutes
+p4
+sS'Projection'
+p5
+VFinal CRS of the transit layer
+p6
+sS'ALG_CREATOR'
+p7
+VChourmo - v1
+p8
+sS'Transit_Network'
+p9
+V
+p10
+sS'Time_range'
+p11
+VList of time ranges used to extract transit stops, in HH:MM format. Each time range must be separated by a semi-colon
+p12
+sS'GTFS_folder'
+p13
+g10
+sS'Smooth_costs'
+p14
+VIf the time resolution of the GTFS file is in minutes, stop times may be to close of each other (0 or 1 minutes). By selecting this option, the cost between stops will be averaged if they are less than Smooth Threshold.
+p15
+sS'Day'
+p16
+VDay to be imported in DD/MM/YYYY format. Must be in the calendar of the GTFS folder
+p17
+sS'ALG_HELP_CREATOR'
+p18
+VChourmo - v1
+p19
+s.

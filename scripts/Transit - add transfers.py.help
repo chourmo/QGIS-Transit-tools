@@ -1,0 +1,50 @@
+(dp0
+S'ALG_DESC'
+p1
+VConnect separate transit route at transfer points. Transfer time is the smallest value between the half frequency and the real transfer time between all possible stop times of route ins and outs.
+p2
+sS'Always_Valid_modes'
+p3
+VList of modes separated by a semi-colon. If transfer cost if larger than Max Transfer time and mode not in this parameter, transfer is not created
+p4
+sS'Network'
+p5
+VBase transit network, created by the Transit - make network script
+p6
+sS'Transfer_points'
+p7
+VLayer of transfer points
+p8
+sS'Buffer'
+p9
+VBuffer distance in which transit stops will be connected
+p10
+sS'Network_transfers'
+p11
+VTransit network with transfers.
+p12
+sS'ALG_CREATOR'
+p13
+VChourmo - v1
+p14
+sS'Penality'
+p15
+VCost added to each transfer in minutes
+p16
+sS'ALG_HELP_CREATOR'
+p17
+VChourmo - v1
+p18
+sS'Min_transfer_time'
+p19
+VTransfer time is at least equal to this parameter, then 
+p20
+sS'Max_transfer_time'
+p21
+VIf transfer cost if larger than this parameter and mode not in "Always Valid modes", transfer is not created
+p22
+sS'Name'
+p23
+VName of the transfer point
+p24
+s.

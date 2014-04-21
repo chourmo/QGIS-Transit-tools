@@ -1,0 +1,45 @@
+(dp0
+S'ALG_DESC'
+p1
+VConnect a transit layer to a road network at parking points.
+p2
+sS'Always_Valid_modes'
+p3
+VThis modes will always be connected to the road network. List of modes separated by a semi-colon
+p4
+sS'Frequency_max'
+p5
+VMaximum frequency in minutes of the transit route that will be connected to the road network.
+p6
+sS'Network'
+p7
+VBase transit network
+p8
+sS'Transfer_times'
+p9
+VTime to go from the transit layer to the parking point, in minutes
+p10
+sS'Network_PR'
+p11
+VTransit and road network
+p12
+sS'Parkings'
+p13
+VPoint layer of park and ride parkings
+p14
+sS'Transit_buffer'
+p15
+VBuffer around the parking point to connect to the transit layer.
+p16
+sS'Cost'
+p17
+V
+p18
+sS'Parking_Name'
+p19
+g18
+sS'Roads'
+p20
+VRoad layer, with a from, to and dir column.
+p21
+s.
