@@ -1,0 +1,26 @@
+(dp0
+S'ALG_DESC'
+p1
+VCut one layer by the other for features that share a common value in specified fields. Keep the inside of the first layer
+p2
+sS'Cut_Key_Field'
+p3
+VField that contains the shared value with cut polygons
+p4
+sS'ALG_CREATOR'
+p5
+VChourmo - v1
+p6
+sS'Key_Field'
+p7
+VField that contains the shared value with cutting polygons
+p8
+sS'ALG_HELP_CREATOR'
+p9
+VChourmo - v1
+p10
+sS'Polygons'
+p11
+V
+p12
+s.
