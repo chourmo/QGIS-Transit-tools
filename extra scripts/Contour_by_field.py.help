@@ -1,0 +1,38 @@
+(dp0
+S'Value_field'
+p1
+VValue for contour processing
+p2
+sS'ALG_DESC'
+p3
+VMake polygons on contours from a point vector file. Contours can be optionnaly grouped by a field 
+p4
+sS'Group_Field'
+p5
+VField to sub-categorize points, one category for each unique value of this field
+p6
+sS'ALG_CREATOR'
+p7
+VChourmo - v1\u000abased on the contour plugin from Chris Crook : https://github.com/ccrook/QGIS-Contour-Plugin.git
+p8
+sS'Levels'
+p9
+VList of levels, separated by a semi-colon. One contour will be made for each interval
+p10
+sS'Results'
+p11
+VPolygon vector file, with min and max levels fields, value field with the same name as the input field and a group field if used
+p12
+sS'Points'
+p13
+VPoint layer
+p14
+sS'Group_by_field'
+p15
+VField to sub-categorize points, one category for each unique value of this field
+p16
+sS'ALG_HELP_CREATOR'
+p17
+VChourmo - v1
+p18
+s.
