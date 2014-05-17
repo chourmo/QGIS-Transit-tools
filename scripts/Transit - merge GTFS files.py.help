@@ -1,0 +1,22 @@
+(dp0
+S'GTFS_folder'
+p1
+VThe main GTFS directory, containing directories, one for each agency, containing valid GTFS files.
+p2
+sS'ALG_CREATOR'
+p3
+VChourmo - v1
+p4
+sS'ALG_DESC'
+p5
+VMerge several GTFS files from one master folder in one resuilt directory. The master directory must contain sub-directories, one per agency, each with a set of valid GTFS files.\u000aTODO : integrate Fare files
+p6
+sS'Folder_name'
+p7
+VName of the result directory. It will be created at the level than the master directory.
+p8
+sS'ALG_HELP_CREATOR'
+p9
+VChourmo - v1
+p10
+s.
