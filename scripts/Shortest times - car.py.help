@@ -1,11 +1,11 @@
 (dp0
-S'ALG_DESC'
+S'Subtotal_cost'
 p1
-VFind shortest paths and costs from a starting points layer on a road layer.
+VColumn to add on shortest path
 p2
-sS'Max_total_time'
+sS'ALG_DESC'
 p3
-VLimit of total time in result
+VFind shortest paths and costs from a starting points layer on a road layer.
 p4
 sS'Name'
 p5
@@ -33,7 +33,7 @@ VLayer of points, each for each accessible node from a start point.\u000a."nodei
 p16
 sS'ALG_CREATOR'
 p17
-VChourmo - v1
+VChourmo - v2
 p18
 sS'Cost'
 p19
@@ -51,9 +51,9 @@ sS'Time_value'
 p25
 VValue of time in Toll_cost / Cost (Euros in minutes for instance). Threshold under which a toll road will not be used.
 p26
-sS'Subtotal_cost'
+sS'Max_total_time'
 p27
-VColumn to add on shortest path
+VLimit of total time in result
 p28
 sS'Reverse_cost'
 p29

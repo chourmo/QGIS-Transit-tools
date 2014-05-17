@@ -6,9 +6,6 @@
 ##Road_network=vector
 ##Cost=field Road_network
 ##Reverse_cost=field Road_network
-##Toll=boolean False
-##Toll_cost=field Road_network
-##Time_value=number 2.5
 ##Max_total_time=number 100
 ##Subtotal=boolean False
 ##Subtotal_cost=field Road_network
@@ -73,21 +70,20 @@ def accumulateArcs(graph, start, dests, tree, arcfeat):
 
 
 
-vtps = Time_value    # en minutes par euro
 mvtps = 1.5
 ratio = 60 / (Start_speed * 1000.0)
 buff = Start_distance
 maxcost = Max_total_time
 
-networklayer = processing.getObject(Road_network)
-networkprovider = networklayer.dataProvider()
-fields = networkprovider.fields()
-fieldnames = networkprovider.fieldNameMap()
-n = networklayer.featureCount()
+netLayer = processing.getObject(Road_network)
+networkPrder = netLayer.dataProvider()
+fields = networkPrder.fields()
+fieldnames = networkPrder.fieldNameMap()
+n = netLayer.featureCount()
 
-if networklayer.fieldNameIndex("from")==-1: progress.setText("Erreur: Pas de champ from")
-if networklayer.fieldNameIndex("to")==-1: progress.setText("Erreur: Pas de champ to")
-if networklayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ dir")
+if netLayer.fieldNameIndex("from")==-1: progress.setText("Erreur: Pas de champ from")
+if netLayer.fieldNameIndex("to")==-1: progress.setText("Erreur: Pas de champ to")
+if netLayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ dir")
 
 
 
@@ -100,7 +96,7 @@ l = 0
 
 progress.setText("Build graph...")
 
-for feat in processing.features(networklayer):
+for feat in processing.features(netLayer):
 	progress.setPercentage(int(100*l/n))
 	l+=1
 
@@ -111,53 +107,25 @@ for feat in processing.features(networklayer):
 		n_end = feat["to"]
 		cost = feat[Cost]
 		rcost = feat[Reverse_cost]
-
 		geom = feat.geometry()
 
-
 		# building nodes, add nodes only if not existing
-        
 		p = geom.vertexAt(0)
 		Nodes.setdefault(n_begin, G.addVertex(p))
         
 		if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
 		p = geom.vertexAt(len(geom.asPolyline())-1)
 		Nodes.setdefault(n_end, G.addVertex(p))
-		
         
 		#Add arcs
-		                
 		if direction == 1 or direction == 2:
-        	
-			if Toll and feat[Toll_cost] > 0:
-				costs = [cost, cost * 100000]
-			else:
-				costs = [cost, cost]
-				
-			pos = G.addArc(Nodes[n_begin], Nodes[n_end], costs)
-            
-			if Toll:
-				Arc_feat[pos] = [feat[Toll_cost]]
-			else:
-				Arc_feat[pos] = [0]
-            
-			if Subtotal:
-				Arc_feat[pos].append(feat[Subtotal_cost])
+			pos = G.addArc(Nodes[n_begin], Nodes[n_end], [cost])
+			Arc_feat[pos] = [0]
+			if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
         
 		if direction == -1 or direction == 2:
-			if Toll and feat[Toll_cost] > 0:
-				costs = [rcost, rcost * 100000]
-			else:
-				costs = [rcost,rcost]
-
-
-			pos = G.addArc(Nodes[n_end], Nodes[n_begin], costs)
-
-			if Toll:
-				Arc_feat[pos] = [feat[Toll_cost]]
-			else:
-				Arc_feat[pos] = [0]
-            
+			pos = G.addArc(Nodes[n_end], Nodes[n_begin], [rcost])
+			Arc_feat[pos] = [0]            
 			if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
 
 
@@ -170,8 +138,6 @@ for k,v in Nodes.iteritems():
 	feat_index.setFeatureId(k)
 	feat_index.setGeometry(QgsGeometry.fromPoint(G.vertex(v).point()))
 	index.insertFeature(feat_index)
-
-
 
 
 # Connect objects to nodes in graph inside buffer buff
@@ -197,18 +163,18 @@ for feat in processing.features(objectlayer):
         
         for i in list_near:
             cost = sqrt(c.sqrDist(G.vertex(Nodes[i]).point())) * ratio
-            pos = G.addArc(Nodes[max_n], Nodes[i], [cost, cost])
+            pos = G.addArc(Nodes[max_n], Nodes[i], [cost])
             Arc_feat[pos] = [0]
             if Subtotal: Arc_feat[pos].append(0)
+
+
+
+# Shortest time per object
 
 list_d = Nodes.values()
 max_n = len(Nodes)
 n = len(startpts)
 l=0
-
-
-
-# Shortest time per object
 
 progress.setText("Shortest times...")
 
@@ -218,31 +184,14 @@ for st in startpts:
     
     (tree, st['l']) = QgsGraphAnalyzer.dijkstra(G, st['vertex'], 0)
     
-    # only analyze accessible nodes with length less than maxcost
+    # mark as unavailable nodes with length less than maxcost
+    for i in [x for x in list_d if tree[x]==-1 or st['l'][x] > maxcost]:
+    	st['l'][i] = -1
     
-    list_acc = [i for i in list_d if tree[i] != -1 and st['l'][i] <= maxcost]
-    
-    for i in [x for x in list_d if tree[x]==-1 or st['l'][x] > maxcost]: st['l'][i] = -1
-
-    
-    if not Toll and Subtotal:
+    if Subtotal:
+	    list_acc = [i for i in list_d if st['l'][i] != -1]
         res = accumulateArcs(G, st['vertex'], list_acc, tree, Arc_feat)
         st['stot'] = {x:res[x][0] for x in list_acc}
-    
-    if Toll:
-    
-        # Shortest time without using toll road
-        
-        (tree2, length2) = QgsGraphAnalyzer.dijkstra(G, st['vertex'], 1)
-        res = accumulateArcs(G, st['vertex'], list_acc, tree, Arc_feat)
-        
-        if Subtotal: st['stot'] = {x:res[x][1] for x in list_acc}
-        
-        for i in [x for x in res.keys() if res[x][0] > 0]:
-            
-            if length2[i]-st['l'][i] <= vtps*res[i][0] and length2[i]/st['l'][i] <= mvtps:
-                st['l'][i] = length2[i]
-
 
 
 # Prepare results
@@ -257,7 +206,7 @@ fields = [
 if Subtotal: fields.append(QgsField(Subtotal_cost, QVariant.Double))
 
 		
-writer = VectorWriter(Results, None, fields, QGis.WKBPoint, networkprovider.crs()) 
+writer = VectorWriter(Results, None, fields, QGis.WKBPoint, networkPrder.crs()) 
 
 l = 0
 node_feat = QgsFeature()
@@ -265,11 +214,9 @@ node_feat = QgsFeature()
 for k,v in Nodes.iteritems():
 	progress.setPercentage(int(100 * l/max_n))
 	l+=1
-
 			
 	geom = QgsGeometry().fromPoint(G.vertex(Nodes[k]).point())
 	node_feat.setGeometry(geom)
-	
 	
 	minlst = [(s['l'][v], s['name']) for s in startpts if s['l'][v] != -1]
 	
