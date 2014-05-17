@@ -1,0 +1,22 @@
+(dp0
+S'ALG_CREATOR'
+p1
+VChourmo - v1
+p2
+sS'ALG_DESC'
+p3
+VKeep n biggest sub polygon in a multipolygon, without exploding it...
+p4
+sS'ALG_HELP_CREATOR'
+p5
+VChourmo - v1
+p6
+sS'Polygons'
+p7
+VInput layer
+p8
+sS'To_keep'
+p9
+VNumber of parts to keep, must be larger than 0
+p10
+s.
