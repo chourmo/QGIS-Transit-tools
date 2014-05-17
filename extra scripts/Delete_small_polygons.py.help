@@ -1,0 +1,26 @@
+(dp0
+S'ALG_DESC'
+p1
+VDelete holes and polygins less than specified size\u000aRequires Shapelib
+p2
+sS'ALG_CREATOR'
+p3
+VChourmo - v1
+p4
+sS'Max_Area'
+p5
+VTheshold for deleting holes, in the same unit as the polygon layer.
+p6
+sS'Delete_holes'
+p7
+VIf no, only delete polygons and polygon parts in multipolygon, else also delete holes ('rings') in polygons
+p8
+sS'ALG_HELP_CREATOR'
+p9
+VChourmo - v1
+p10
+sS'Polygons'
+p11
+VPolygon layer
+p12
+s.
