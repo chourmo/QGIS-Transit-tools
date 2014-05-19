@@ -26,6 +26,8 @@ for feat in processing.features(polyLayer):
 	
 	geom = loads(feat.geometry().asWkb())
 	resgeom = []
+	
+	if geom.geom_type == 'Polygon': geom = [geom]
 		
 	for g in geom:
 						
