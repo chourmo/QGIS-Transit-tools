@@ -82,6 +82,13 @@ class UnicodeDictWriter(csv.DictWriter, object):
         self.writer = UnicodeWriter(f, dialect, **kwds)
 
 
+def subdirectories(dir):
+	# return all subdirectories, one level deep
+	return [os.path.join(dir, n) for n in os.listdir(dir)
+			if os.path.isdir(os.path.join(dir, n))]
+
+
+
 # ------- Start of algorithm
 
 # description of GTFS to import, by name of file, with new key 'key',
@@ -113,19 +120,21 @@ maxfiles = []
 
 # chek if all required file names exist in each folder
 # and find the list of files used by each GTFS folder
-for (p, d, f) in os.walk(GTFS_folder):
+for d in subdirectories(GTFS_folder):
+
+	f = os.listdir(d)
 	
 	# all required files exist in folder
 	if req_files.issubset(set(f)):
-		dirnames.append(p)
+		dirnames.append(d)
 		nfiles += len(f)
 		maxfiles.extend(f)
+		progress.setText("folder {0} is ok".format(d))
 	else:
-		if p != GTFS_folder:
-			progress.setText("{0} is not a valid GTFS folder".format(d))
+		progress.setText("{0} is not a valid GTFS folder".format(d))
 
 # update values of maxfiles
-maxfiles = ['/'+x for x in set(maxfiles)]
+maxfiles = ['/' + x for x in set(maxfiles)]
 
 
 # dict of fields used as index by GTFS, one for each folder
@@ -133,7 +142,7 @@ ix = {d: {x:{} for x in [y['key'] for y in ref if y['key']!=0]} for d in dirname
 
 
 # result folder path
-r_path = GTFS_folder + '/' + Folder_name
+r_path = os.path.join(GTFS_folder, Folder_name)
 
 
 if len(dirnames) == 0 or os.path.isdir(r_path + "/"):
@@ -147,6 +156,7 @@ else:
 	# loop on each file name
 	for r in [x for x in ref if x['name'] in maxfiles]:
 		
+		progress.setText("start fusion of {0}".format(r['name']))
 		name = r['name']
 		key = r['key']
 		f = set()
@@ -167,9 +177,8 @@ else:
 		# check only if file exists
 		for d in [x for x in dirnames if os.path.exists(x + name)]:
 			with open(d + name) as csvfile:
-				reader = UnicodeDictReader(csvfile)
-				line = reader.next()
-				f = f.union(set(line.keys()))
+				reader = csv.DictReader(csvfile)
+				f = f.union(set(reader.fieldnames))
 		
 		# create new file
 		writer = UnicodeDictWriter(open(r_path + name, 'wb'), list(f))
@@ -180,7 +189,7 @@ else:
 		for d in [x for x in dirnames if os.path.exists(x + name)]:
 			progress.setPercentage(int(100 * lfiles / nfiles))
 			lfiles += 1
-		
+					
 			with open(d + name) as csvfile:
 				for row in UnicodeDictReader(csvfile):
 					
