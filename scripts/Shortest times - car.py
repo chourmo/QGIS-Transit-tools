@@ -16,7 +16,6 @@ from qgis.core import *
 from qgis.networkanalysis import * 
 from PyQt4.QtCore import * 
 from operator import itemgetter
-import time 
 from math import sqrt
 
 
@@ -92,6 +91,7 @@ if netLayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ di
 G = QgsGraph()
 Nodes = {} 					 #  key: id du Road_network, valeur = id du graph
 Arc_feat = {} 				 # dict des attributs, key numero d'arc Road_network
+Arc_ix = []
 l = 0
 
 progress.setText("Build graph...")
@@ -105,39 +105,42 @@ for feat in processing.features(netLayer):
 	if direction != 0:
 		n_begin = feat["from"]
 		n_end = feat["to"]
-		cost = feat[Cost]
-		rcost = feat[Reverse_cost]
 		geom = feat.geometry()
 
-		# building nodes, add nodes only if not existing
-		p = geom.vertexAt(0)
-		Nodes.setdefault(n_begin, G.addVertex(p))
-        
+		Nodes[n_begin] = geom.vertexAt(0)        
 		if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
-		p = geom.vertexAt(len(geom.asPolyline())-1)
-		Nodes.setdefault(n_end, G.addVertex(p))
+		Nodes[n_end] = geom.vertexAt(len(geom.asPolyline())-1)
         
-		#Add arcs
-		if direction == 1 or direction == 2:
-			pos = G.addArc(Nodes[n_begin], Nodes[n_end], [cost])
-			Arc_feat[pos] = [0]
-			if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
+		#Add arcs to index
+		if direction == 1 or direction == 2:			
+			Arc_ix.append([n_begin, n_end, [feat[Cost]]])
         
 		if direction == -1 or direction == 2:
-			pos = G.addArc(Nodes[n_end], Nodes[n_begin], [rcost])
-			Arc_feat[pos] = [0]            
-			if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
+			Arc_ix.append([n_end, n_begin, [feat[Reverse_cost]]])
 
 
-
-# Built index of nodes to connect starting points
+# Built index of nodes to connect starting points and to graph
 feat_index = QgsFeature()
 index = QgsSpatialIndex()
 
-for k,v in Nodes.iteritems():
-	feat_index.setFeatureId(k)
-	feat_index.setGeometry(QgsGeometry.fromPoint(G.vertex(v).point()))
+for k in Nodes:
+
+	# add to graph and store graph value in place of point geom
+	p = Nodes[k]   # store point
+	Nodes[k] = G.addVertex(Nodes[k])
+
+	# index node	
+	feat_index.setFeatureId(Nodes[k])
+	feat_index.setGeometry(QgsGeometry.fromPoint(p))
 	index.insertFeature(feat_index)
+
+
+# add arcs to graph
+for a in Arc_ix:
+	pos = G.addArc(Nodes[a[0]], Nodes[a[1]], a[2])
+	Arc_feat[pos] = [0]
+	if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
+
 
 
 # Connect objects to nodes in graph inside buffer buff
@@ -189,7 +192,7 @@ for st in startpts:
     	st['l'][i] = -1
     
     if Subtotal:
-	    list_acc = [i for i in list_d if st['l'][i] != -1]
+    	list_acc = [i for i in list_d if st['l'][i] != -1]
         res = accumulateArcs(G, st['vertex'], list_acc, tree, Arc_feat)
         st['stot'] = {x:res[x][0] for x in list_acc}
 
