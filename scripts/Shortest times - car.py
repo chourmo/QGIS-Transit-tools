@@ -127,7 +127,7 @@ for k in Nodes:
 
 	# add to graph and store graph value in place of point geom
 	p = Nodes[k]   # store point
-	Nodes[k] = G.addVertex(Nodes[k])
+	Nodes[k] = G.addVertex(p)
 
 	# index node	
 	feat_index.setFeatureId(Nodes[k])
@@ -218,7 +218,7 @@ for k,v in Nodes.iteritems():
 	progress.setPercentage(int(100 * l/max_n))
 	l+=1
 			
-	geom = QgsGeometry().fromPoint(G.vertex(Nodes[k]).point())
+	geom = QgsGeometry().fromPoint(G.vertex(v).point())
 	node_feat.setGeometry(geom)
 	
 	minlst = [(s['l'][v], s['name']) for s in startpts if s['l'][v] != -1]
@@ -229,11 +229,9 @@ for k,v in Nodes.iteritems():
 	for start in startpts:
 	
 		if start['l'][v] != -1:
-			attrs = [k, start['name'], start['l'][v]]
+			attrs = [k, start['name'], start['l'][v], 'N']
 			
-			if start['name'] == minst: attrs.append('Y')
-			else: attrs.append('N')
-			
+			if start['name'] == minst: attrs[3] = 'Y'
 			if Subtotal: attrs.append(start['stot'][v])
 				
 			node_feat.setAttributes(attrs)
