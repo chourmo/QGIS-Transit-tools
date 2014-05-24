@@ -17,7 +17,14 @@ from qgis.networkanalysis import *
 from PyQt4.QtCore import * 
 from operator import itemgetter
 from math import sqrt
+import time
 
+
+def indexFeat(index, i, pt):
+	f = QgsFeature()
+	f.setFeatureId(i)
+	f.setGeometry(QgsGeometry.fromPoint(pt))
+	index.insertFeature(f)
 
 
 def buffRect(point, b):
@@ -26,47 +33,50 @@ def buffRect(point, b):
     return QgsRectangle(x-b, y-b, x+b, y+b)
 
 
-def accumulateArcs(graph, start, dests, tree, arcfeat):
+def accumulateArcs(graph, start, dests, tree, i):
 	''' Accumulates values on the shortest path
 	G: Graph
 	start : starting node of graph
  	dest : list of nodes to accumulate in graph value
  	tree : list of previous arcs
- 	arcfeat : atrributes dict, key arcid, value for accumulation, must support adding
- 	
- 	Return dict, key node, value dict of attributes or list of -1 if not of accessible'''
+ 	i : start number in arc attributes for accumulation
+ 	Return dict, key node in dests list, value list of attributes''' 	
  	
 	dest_nodes = set(dests)  			# accessible nodes to analyze
-	arc_set = set()                     # analyzed arcs, id in graph
 	
-	results_t = {k: v[:] for k,v in arcfeat.iteritems()}
+	# pre-fill results dict
+	res = {k:-1 for k in range(graph.vertexCount())}
 		
 	while len(dest_nodes) > 0:
 		
-		n_cursor = dest_nodes.pop()       # first node to analyse
-		a_cursor = tree[n_cursor]         # analysed arc
-		arc_iter = []                     # list of arcs analyzed on this iteration
-		
+		path = []				  	      # list of nodes on path to start
+		n_cursor = dest_nodes.pop()       # first node to traverse
+																							
 		while n_cursor != start:
-			
-			# add each value of arc to arcs in list
-			
-			for b in arc_iter:
-				results_t[b] = [i[0]+i[1] for i in zip(results_t[b],results_t[a_cursor])]
-			
-			# Node already traversed, stop loop
-			
-			if a_cursor in arc_set: n_cursor = start
-			else:
-				arc_set.add(a_cursor)
-				arc_iter.append(a_cursor)   				
-				dest_nodes.discard(n_cursor)				
-				n_cursor = graph.arc(a_cursor).outVertex()
-				a_cursor = tree[n_cursor]
-	
-	results_t[-1] = [-1] * len(results_t[results_t.keys()[0]])
-	return {x:results_t[tree[x]] for x in dests}
+			dest_nodes.discard(n_cursor)  # if n_cursor a destination, delete from list
+						
+			# add arc value to res
+			res[n_cursor] = graph.arc(tree[n_cursor]).properties()[i:]
 
+			for n in path:
+				res[n] = [x + y for x,y in zip(res[n], res[n_cursor])]
+	
+			# add node in path
+			path.append(n_cursor)
+
+			# next vertex on path
+			n_cursor = graph.arc(tree[n_cursor]).outVertex()
+				
+			# if already traversed arc, end loop
+			if n_cursor != start and res[n_cursor] != -1:
+								
+				for n in path:
+					res[n] = [x + y for x,y in zip(res[n], res[n_cursor])]
+				n_cursor = start
+		
+	return {k:res[k] for k in dests}
+
+t0 = time.time()
 
 
 mvtps = 1.5
@@ -110,13 +120,15 @@ for feat in processing.features(netLayer):
 		Nodes[n_begin] = geom.vertexAt(0)        
 		if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
 		Nodes[n_end] = geom.vertexAt(len(geom.asPolyline())-1)
+		
+		cost = [feat[Cost], 0]
+		if Subtotal: cost[1] = feat[Subtotal_cost]
         
 		#Add arcs to index
-		if direction == 1 or direction == 2:			
-			Arc_ix.append([n_begin, n_end, [feat[Cost]]])
+		if direction == 1 or direction == 2: Arc_ix.append([n_begin, n_end, cost])
         
-		if direction == -1 or direction == 2:
-			Arc_ix.append([n_end, n_begin, [feat[Reverse_cost]]])
+        cost[0] = feat[Reverse_cost]
+        if direction == -1 or direction == 2: Arc_ix.append([n_end, n_begin, cost])
 
 
 # Built index of nodes to connect starting points and to graph
@@ -125,21 +137,15 @@ index = QgsSpatialIndex()
 
 for k in Nodes:
 
-	# add to graph and store graph value in place of point geom
+	# add to graph, store graph value in place of point geom and index
 	p = Nodes[k]   # store point
 	Nodes[k] = G.addVertex(p)
-
-	# index node	
-	feat_index.setFeatureId(Nodes[k])
-	feat_index.setGeometry(QgsGeometry.fromPoint(p))
-	index.insertFeature(feat_index)
+	indexFeat(index, Nodes[k], p)
 
 
 # add arcs to graph
 for a in Arc_ix:
-	pos = G.addArc(Nodes[a[0]], Nodes[a[1]], a[2])
-	Arc_feat[pos] = [0]
-	if Subtotal: Arc_feat[pos].append(feat[Subtotal_cost])
+	G.addArc(Nodes[a[0]], Nodes[a[1]], a[2])
 
 
 
@@ -165,10 +171,8 @@ for feat in processing.features(objectlayer):
         startpts.append({'vertex': Nodes[max_n], 'name':feat[Name]})
         
         for i in list_near:
-            cost = sqrt(c.sqrDist(G.vertex(Nodes[i]).point())) * ratio
-            pos = G.addArc(Nodes[max_n], Nodes[i], [cost])
-            Arc_feat[pos] = [0]
-            if Subtotal: Arc_feat[pos].append(0)
+            cost = [sqrt(c.sqrDist(G.vertex(i).point())) * ratio, 0]            
+            G.addArc(Nodes[max_n], i, cost)
 
 
 
@@ -185,7 +189,9 @@ for st in startpts:
     progress.setPercentage(int(100*l/n))
     l+=1
     
-    (tree, st['l']) = QgsGraphAnalyzer.dijkstra(G, st['vertex'], 0)
+    startpt = st['vertex']
+    
+    (tree, st['l']) = QgsGraphAnalyzer.dijkstra(G, startpt, 0)
     
     # mark as unavailable nodes with length less than maxcost
     for i in [x for x in list_d if tree[x]==-1 or st['l'][x] > maxcost]:
@@ -193,7 +199,7 @@ for st in startpts:
     
     if Subtotal:
     	list_acc = [i for i in list_d if st['l'][i] != -1]
-        res = accumulateArcs(G, st['vertex'], list_acc, tree, Arc_feat)
+        res = accumulateArcs(G, startpt, list_acc, tree, 1)
         st['stot'] = {x:res[x][0] for x in list_acc}
 
 
@@ -238,3 +244,5 @@ for k,v in Nodes.iteritems():
 			writer.addFeature(node_feat)
 
 del writer
+
+progress.setText("{0:.1f} secs".format(time.time()-t0))
