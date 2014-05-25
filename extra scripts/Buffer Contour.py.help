@@ -1,0 +1,29 @@
+(dp0
+S'Value_field'
+p1
+V
+p2
+sS'ALG_DESC'
+p3
+VMake circular buffer contours around points to each level value
+p4
+sS'ALG_CREATOR'
+p5
+VChourmo
+p6
+sS'Levels'
+p7
+VLevels in Value_field unit, separated by a semicolon
+p8
+sS'Points'
+p9
+g2
+sS'Group_by_field'
+p10
+VA different buffer will be created for each unique field value
+p11
+sS'Buffer_parameter'
+p12
+Vbuffer size = (level - value) * buffer parameter
+p13
+s.
