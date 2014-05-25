@@ -1,0 +1,22 @@
+(dp0
+S'ALG_CREATOR'
+p1
+VChourmo
+p2
+sS'ALG_DESC'
+p3
+VDraw the shortest path(s) on a road network corresponding to lines
+p4
+sS'Start_Name'
+p5
+VName of starting point, if two lines have the same start name, they will start from the same point
+p6
+sS'ALG_HELP_CREATOR'
+p7
+VChourmo
+p8
+sS'End_Name'
+p9
+VName of ending point, if two lines have the same end name, they will end at the same point
+p10
+s.

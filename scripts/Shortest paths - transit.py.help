@@ -1,0 +1,37 @@
+(dp0
+S'ALG_DESC'
+p1
+VDraw shortest path(s) on network corresping to lines
+p2
+sS'Max_walking_distance'
+p3
+VDistance to search for a starting  node
+p4
+sS'Park_ride'
+p5
+V
+p6
+sS'Lines'
+p7
+g6
+sS'Results'
+p8
+g6
+sS'Cost'
+p9
+g6
+sS'Transit_network'
+p10
+g6
+sS'Max_waiting_time'
+p11
+g6
+sS'End_Name'
+p12
+VName of  ending point, if two lines have the same end name, they will end at the same point
+p13
+sS'Start_Name'
+p14
+VName of starting point, if two lines have the same start name, they will start from the same point
+p15
+s.
