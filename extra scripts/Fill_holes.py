@@ -1,12 +1,10 @@
 ##Polygons=vector
+##Area=number 100000
 ##Results=output vector
 
 from qgis.core import *
 from PyQt4.QtCore import *
 from processing.core.VectorWriter import VectorWriter
-from shapely.geometry import Polygon, MultiPolygon
-from shapely.wkb import loads
-from shapely.wkt import dumps
 
 
 polyLayer = processing.getObject(Polygons)
@@ -22,15 +20,27 @@ for feat in processing.features(polyLayer):
 	progress.setPercentage(int(100*l/n))
 	l+=1
 	
-	geom = loads(feat.geometry().asWkb())
+	geom = feat.geometry()
+	multi = geom.isMultipart()
 	
-	if geom.geom_type == 'Polygon':
-		feat.setGeometry(QgsGeometry.fromWkt(dumps(Polygon(geom.exterior))))
+	if multi: poly = [g.asPolygon() for g in geom.asGeometryCollection()]
+	else: poly = [geom.asPolygon()]
+	
+	geom = QgsGeometry()
+	
+	for p in poly:
 		
-	else:
-		resgeom = [Polygon(g.exterior) for g in geom]
-		feat.setGeometry(QgsGeometry.fromWkt(dumps(MultiPolygon(resgeom))))
-	
+		resgeom = QgsGeometry()		
+		resgeom.addPart(p[0])
+		if len(p) > 1:
+			for r in p[1:]:
+				progress.setText("aire {0}".format(QgsGeometry().fromPolygon([r]).area()))
+				if QgsGeometry().fromPolygon([r]).area() > Area:
+					resgeom.addRing(r)
+				
+		geom.addPartGeometry(resgeom)
+			
+	feat.setGeometry(geom)	
 	writer.addFeature(feat)		
 
 del writer

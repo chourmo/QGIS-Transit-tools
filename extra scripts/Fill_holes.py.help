@@ -5,10 +5,14 @@ VChourmo - v1
 p2
 sS'ALG_DESC'
 p3
-VDelete all holes (or "rings") in polygons or multipolygons\u000a\u000aRequires Shapelib
+VDelete all holes (or "rings") in polygons or multipolygons over an area limit
 p4
 sS'ALG_HELP_CREATOR'
 p5
 VChourmo - v1
 p6
+sS'Area'
+p7
+VMaximum area for holes in result
+p8
 s.
