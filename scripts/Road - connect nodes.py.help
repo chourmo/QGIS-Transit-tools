@@ -1,0 +1,10 @@
+(dp0
+S'ALG_CREATOR'
+p1
+VChourmo
+p2
+sS'ALG_DESC'
+p3
+VAdd node values to starting and ending point of line. If two nodes are closer (with less than buffer distance), the value will be the same.
+p4
+s.
