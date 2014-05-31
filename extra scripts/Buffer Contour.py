@@ -2,6 +2,7 @@
 ##Value_field=field Points
 ##Levels=string 10;20
 ##Buffer_parameter=number 60
+##Max_buffer_size=number 500
 ##Group_by_field=boolean True
 ##Group_Field=field Points
 ##Contour=output vector
@@ -16,6 +17,7 @@ from shapely.wkt import dumps
 
 levels = [float(x) for x in Levels.split(";")]
 maxlevel = max(levels)
+mbuf = Max_buffer_size
 
 progress.setText("lvls {0}".format(levels))
 
@@ -66,7 +68,8 @@ for k,v in pts.iteritems():
 		feat.setAttributes(attrs)
 			
 		ptlist = [x for x in v if x[1] < l]
-		polygons = [loads(QgsGeometry.fromPoint(p).buffer(d * bpr, 10).asWkb()) for p,d in ptlist]
+		polygons = [loads(QgsGeometry.fromPoint(p).buffer(min(mbuf, d * bpr), 10).asWkb())
+					for p,d in ptlist]
 		
 		feat.setGeometry(QgsGeometry.fromWkt(dumps(cascaded_union(polygons))))
 		writer.addFeature(feat)
