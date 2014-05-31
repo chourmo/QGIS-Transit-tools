@@ -30,6 +30,28 @@ def buffRect(point, b):
 	return QgsRectangle(x - b, y - b, x + b, y + b)
 
 
+def mergePolylines(lines):
+	''' merge list of wkb lines,
+	lines parameter is a list of wkb Polylines, Multipolylines must be exploded
+	the two closest end/start of lines in the order of the list will be merged
+	returns as Wkb linestring'''
+	
+	lpts = list(lines[0])   # list of points
+		
+	for l in lines[1:]:
+
+		m = min([(True, False, lpts[0].sqrDist(l[0])),
+				 (True, True, lpts[0].sqrDist(l[-1])),
+				 (False, False, lpts[-1].sqrDist(l[0])),
+				 (False, True, lpts[-1].sqrDist(l[-1]))], key=itemgetter(2))
+		
+		if m[0]: lpts.reverse()
+		if m[1]: lpts.extend(reversed(l))
+		else: lpts.extend(l)
+				
+	return lpts
+
+
 def accumulateArcs(graph, start, dests, tree, i):
 	''' Accumulates values on the shortest path
 	G: Graph
@@ -320,7 +342,7 @@ fields.append(QgsField("transfCost", QVariant.Double))
 fields.append(QgsField("modes", QVariant.String))
 if Park_ride: fields.append(QgsField("driveCost", QVariant.Double))
 
-writer = VectorWriter(Results, None, fields, QGis.WKBMultiLineString, netPder.crs()) 
+writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPder.crs()) 
 
 l = 0
 max_n = len(lines)
@@ -336,15 +358,17 @@ for feat in processing.features(lineslayer):
 	
 	glist = [ageom[x] for x in res['param'][3].split(sep)[1:-1]]
 	
-	g = [] # a list of Polyline
+	polylist = [] # a list of Polyline
+	
 	for x in glist:
 		geom = QgsGeometry().fromWkt(x)		
 		if geom.isMultipart():
 			geom = geom.asGeometryCollection()	
-			g.extend([x.asPolyline() for x in geom])
-		else: g.append(geom.asPolyline())
+			polylist.extend([x.asPolyline() for x in geom])
+		else: polylist.append(geom.asPolyline())
 		
-	resfeat.setGeometry(QgsGeometry().fromMultiPolyline(g))
+		resfeat.setGeometry(QgsGeometry().fromPolyline(reversed(mergePolylines(polylist))))
+
 	
 	attrs.extend([res['cost'], int(res['param'][0]), res['param'][1], res['param'][2]])
 	
