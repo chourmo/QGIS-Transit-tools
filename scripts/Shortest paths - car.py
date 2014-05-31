@@ -32,6 +32,56 @@ def buffRect(point, b):
     return QgsRectangle(x-b, y-b, x+b, y+b)
 
 
+def stkey(p, stix, nodeix, graph, b):
+	''' find and return graph node corresponding to pts
+		if point not connected, return -1
+		if no startpoint stix index, add to graph, add to index ix and connect to graph'''
+	
+	stnear = stix.intersects(buffRect(p, buff))
+	if len(stnear)==0:			# no existing start node in buffer, create and index one
+		
+		graphnear = nodeix.intersects(buffRect(p, buff))
+		
+		if len(graphnear) == 0: return -1    # no graph node to connect to
+		else:
+			res = G.addVertex(p)
+			indexFeat(stix, res, p)
+			
+			for i in graphnear:
+				pt = G.vertex(i).point()
+				dist = sqrt(p.sqrDist(pt)) * ratio
+				G.addArc(res, i, [dist, 0, str(res) + str(i)])
+				G.addArc(i, res, [dist, 0, str(i) + str(res)])
+				ageom[str(res)+str(i)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
+				ageom[str(i)+str(res)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
+	
+			return res
+		
+	else: return stnear[0]
+
+
+def mergePolylines(lines):
+	''' merge list of wkb lines,
+	lines parameter is a list of wkb Polylines, Multipolylines must be exploded
+	the two closest end/start of lines in the order of the list will be merged
+	returns as Wkb linestring'''
+	
+	lpts = list(lines[0])   # list of points
+		
+	for l in lines[1:]:
+
+		m = min([(True, False, lpts[0].sqrDist(l[0])),
+				 (True, True, lpts[0].sqrDist(l[-1])),
+				 (False, False, lpts[-1].sqrDist(l[0])),
+				 (False, True, lpts[-1].sqrDist(l[-1]))], key=itemgetter(2))
+		
+		if m[0]: lpts.reverse()
+		if m[1]: lpts.extend(reversed(l))
+		else: lpts.extend(l)
+				
+	return lpts
+
+
 def accumulateArcs(graph, start, dests, tree, i):
 	''' Accumulates values on the shortest path
 	G: Graph
@@ -133,26 +183,21 @@ for feat in processing.features(netLayer):
 feat_index = QgsFeature()
 ix = QgsSpatialIndex()
 
-for k in Nodes:
-
-	# add to graph, store graph value in place of point geom and index
+for k in Nodes:                   # add to graph, store graph value in place of point geom and index
 	p = Nodes[k]   # store point
 	Nodes[k] = G.addVertex(p)
 	indexFeat(ix, Nodes[k], p)
 
-
-# add arcs to graph
-for a in Arc_ix:
+for a in Arc_ix:								# add arcs to graph
 	G.addArc(Nodes[a[0]], Nodes[a[1]], a[2])
 
 
 
-# Imports lines
-progress.setText('Add start and end points')
+# Imports path
+progress.setText('Import path')
 
-lines = {}
-startpts = {}
-endpts = {}
+path = {}
+keyix = QgsSpatialIndex()
 
 lineslayer = processing.getObject(Lines)
 linesprvder = lineslayer.dataProvider()
@@ -165,63 +210,19 @@ for feat in processing.features(lineslayer):
 	l+=1
 	
 	geom = feat.geometry()
-	lines[(feat[Start_Name], feat[End_Name])] = {}
+	pathpoly = list(geom.asPolyline())
+	path[feat.id()] = {'pts':[stkey(x, keyix, ix, G, buff) for x in patpoly], 'path':[]}
 	
-	startpts[feat[Start_Name]] = geom.vertexAt(0)
+	if len([x for x in path[feat.id()]['pts'] if x == -1]) > 0:
+		progress.setText("One point of path {0} not connected".format(feat.attributes()))
+		del path[feat.id()]
+
+pairs = {x:set() for x in set([v['pts'][:-1] for v in path.values()])}
+
+for p in path:
+	for i in range(len(path[p]['pts'][:-1])):
+		pairs[path[p]['pts'][i]].add(path[p]['pts'][i + 1])
 	
-	if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
-	endpts[feat[End_Name]] = geom.vertexAt(len(geom.asPolyline())-1)
-
-
-
-# connect start and end pts to graph
-max_n = max(Nodes)
-badstart = []
-badend = []
-
-for s,p in startpts.iteritems():	
-			
-	near = ix.intersects(buffRect(p, buff))
-	
-	if len(near)==0:
-		progress.setText("Start point {0} not connected".format(s))
-		badstart.append(s)
-		
-	else:
-		# create new node
-		max_n += 1
-		Nodes[max_n] = G.addVertex(p)
-		startpts[s] = Nodes[max_n]
-						
-		for i in near:
-			pt = G.vertex(i).point()
-			G.addArc(Nodes[max_n], i, [sqrt(p.sqrDist(pt)) * ratio, 0, s+str(i)])
-			ageom[s+str(i)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
-
-for s,p in endpts.iteritems():	
-			
-	near = ix.intersects(buffRect(p, buff))
-	
-	if len(near)==0:
-		progress.setText("End point {0} not connected".format(s))
-		badend.append(s)
-		
-	else:
-		# create new node
-		max_n += 1
-		Nodes[max_n] = G.addVertex(p)
-		endpts[s] = Nodes[max_n]
-						
-		for i in near:
-			pt = G.vertex(i).point()
-			G.addArc(i, Nodes[max_n], [sqrt(p.sqrDist(pt)) * ratio, 0, s+str(i)+sep])
-			ageom[s+str(i)] = QgsGeometry().fromPolyline([pt, p]).exportToWkt()
-
-
-pairs = {x:[] for x in set([x[0] for x in lines]) if x not in badstart}
-for s,e in lines:
-	if e not in badend: pairs[s].append(e)
-
 
 
 # Shortest time per object
@@ -263,7 +264,7 @@ fields = linesprvder.fields()
 fields.append(QgsField(Cost, QVariant.Double))
 if Subtotal: fields.append(QgsField(Subtotal_cost, QVariant.Double))
 		
-writer = VectorWriter(Results, None, fields, QGis.WKBMultiLineString, netPrder.crs()) 
+writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPrder.crs()) 
 
 l = 0
 resfeat = QgsFeature()
@@ -276,19 +277,19 @@ for feat in processing.features(lineslayer):
 	if (feat[Start_Name], feat[End_Name]) in lines:
 		pstart = pairs[feat[Start_Name]]
 		res = lines[(feat[Start_Name], feat[End_Name])]
+		
+		polylist = []
 	
 		glist = [ageom[x] for x in res['param'][1].split(sep)[1:-1]]
 	
-		g = [] # a list of Polyline
 		for x in glist:
-			geom = QgsGeometry().fromWkt(x)
+			geom = QgsGeometry().fromWkt(x)		
 			if geom.isMultipart():
 				geom = geom.asGeometryCollection()	
-				g.extend([x.asPolyline() for x in geom])
-			else: g.append(geom.asPolyline())
+				polylist.extend([x.asPolyline() for x in geom])
+			else: polylist.append(geom.asPolyline())
 		
-		resfeat.setGeometry(QgsGeometry().fromMultiPolyline(g))
-
+		resfeat.setGeometry(QgsGeometry().fromPolyline(reversed(mergePolylines(polylist))))
 	
 		attrs = feat.attributes()
 		attrs.append(res['cost'])
