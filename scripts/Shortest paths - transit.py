@@ -1,7 +1,5 @@
 ##[Network]=group
 ##Lines=vector
-##Start_Name=field Lines
-##End_Name=field Lines
 ##Max_walking_distance=number 500
 ##Max_waiting_time=number 10
 ##Transit_network=vector
@@ -15,7 +13,6 @@ from qgis.networkanalysis import *
 from PyQt4.QtCore import *
 from operator import itemgetter
 from math import sqrt
-import time
 
 
 def indexFeat(index, i, pt):
@@ -30,9 +27,49 @@ def buffRect(point, b):
 	return QgsRectangle(x - b, y - b, x + b, y + b)
 
 
+def connectTNode(p, newix, nodeix, graph, buff, dir):
+	''' find and return graph node corresponding to pts
+		if point not connected, return -1
+		if no point exists in stix index, find close points, add to index and connect to graph
+		else return point'''
+	
+	br = buffRect(p, buff)
+	
+	near = newix.intersects(br)
+
+	if len(near) == 0:			# no existing start node in buffer, create and index one
+		
+		gnear = nodeix.intersects(br)
+		
+		if len(gnear) == 0:
+			return -1    # no graph node to connect to
+		
+		else:
+			res = G.addVertex(p)
+			indexFeat(newix, res, p)
+						
+			cost = [0, 0, 0, 'walk'+sep, '']
+			if Park_ride: cost.extend([0, 0])
+			
+			for i in gnear:
+
+				if dir == 'in':
+					cost[0]=sqrt(p.sqrDist(G.vertex(i).point()))*ratio+min(nodefreq[i], tmax)
+					G.addArc(res, i, cost)
+					
+				elif dir == 'out':
+					cost[0] = sqrt(p.sqrDist(G.vertex(i).point())) * ratio
+					G.addArc(i, res, cost)
+
+			return res
+		
+	else: return near[0]
+
+
+
 def mergePolylines(lines):
 	''' merge list of wkb lines,
-	lines parameter is a list of wkb Polylines, Multipolylines must be exploded
+	lines parameter is a list of wkb Polylines, Multipolylines must be exploded before
 	the two closest end/start of lines in the order of the list will be merged
 	returns as Wkb linestring'''
 	
@@ -96,10 +133,12 @@ def accumulateArcs(graph, start, dests, tree, i):
 	return {k:res[k] for k in dests}
 
 
-progress.setText('Built graph')
+progress.setInfo('Build graph')
 
 buff = Max_walking_distance / 2.0
 tmax = Max_waiting_time
+ratio = 60 / (3000.0)
+
 
 # internal parameters
 pen_car = 2.0       # penality for car mode
@@ -113,18 +152,17 @@ netPder = netLayer.dataProvider()
 fieldnames = netPder.fieldNameMap()
 n = netLayer.featureCount()
 
-if netLayer.fieldNameIndex("from")==-1: progress.setText("No field from")
-if netLayer.fieldNameIndex("to")==-1: progress.setText("No field to")
-if netLayer.fieldNameIndex("dir")==-1: progress.setText("No field dir")
-if netLayer.fieldNameIndex("freq")==-1: progress.setText("No field freq")
-if netLayer.fieldNameIndex("mode")==-1: progress.setText("No field mode")
+if netLayer.fieldNameIndex("from")==-1: progress.setInfo("No field from")
+if netLayer.fieldNameIndex("to")==-1: progress.setInfo("No field to")
+if netLayer.fieldNameIndex("dir")==-1: progress.setInfo("No field dir")
+if netLayer.fieldNameIndex("freq")==-1: progress.setInfo("No field freq")
+if netLayer.fieldNameIndex("mode")==-1: progress.setInfo("No field mode")
 
 
 G = QgsGraph()
 Nodes = {}                   # key Network.id(), value node graoh id
-node_freq = {}               # key node graph id, value frequency of node
 Arc_ix = []					 # list of arcs to add to graph
-ageom = {}				 # store geometry as wkt by feature id for graph, by name+i for start and end connections
+
 
 l = 0
 for feat in processing.features(netLayer):
@@ -142,7 +180,7 @@ for feat in processing.features(netLayer):
 		n_end = feat["to"]
 		geom = feat.geometry() 
 		
-		i = str(feat.id()) + sep
+		fid = str(feat.id()) + sep
 
 		# building nodes
 		Nodes[n_begin] = {'p':geom.vertexAt(0), 'mode':mode, 'fr':30.0 / feat["freq"]}
@@ -155,9 +193,9 @@ for feat in processing.features(netLayer):
 		if Park_ride and mode =='road': costs = [cost * pen_car]
 		else : costs = [cost]
 				
-		if mode == 'transfer': costs.extend([1, cost, sep, i])
-		elif mode == 'parking': costs.extend([0, cost, sep, i])
-		else: costs.extend([0, 0, mode + sep, i])
+		if mode == 'transfer': costs.extend([1, cost, sep, fid])
+		elif mode == 'parking': costs.extend([0, cost, sep, fid])
+		else: costs.extend([0, 0, mode + sep, fid])
 	
 		if Park_ride and mode == 'road': costs.extend([cost, cost])
 		elif Park_ride: costs.extend([0, cost])
@@ -169,8 +207,12 @@ for feat in processing.features(netLayer):
 		if direction == 1 or direction == 2: Arc_ix.append([n_begin, n_end, costs])
 		if direction == -1 or direction == 2: Arc_ix.append([n_end, n_begin, costs])
 
-ix = QgsSpatialIndex()
+
+
+transitix = QgsSpatialIndex()
 fullix = QgsSpatialIndex()
+nodefreq = {}
+
 
 # Add nodes to graph
 for k in  Nodes:
@@ -182,9 +224,9 @@ for k in  Nodes:
 	
 	# add node to graph
 	Nodes[k] = G.addVertex(p)
-	node_freq[Nodes[k]] = freq
+	nodefreq[Nodes[k]] = freq
 	
-	if mode != 'road': indexFeat(ix, Nodes[k], p)
+	if mode != 'road': indexFeat(transitix, Nodes[k], p)
 	indexFeat(fullix, Nodes[k], p)
 
 # Add arcs to graph
@@ -193,12 +235,12 @@ for a in Arc_ix:
 
 
 
-# Imports lines
-progress.setText('Add start and end points')
+# Imports path
+progress.setInfo('Import paths')
 
-lines = {}
-startpts = {}
-endpts = {}
+path = {}
+stix = QgsSpatialIndex()
+endix = QgsSpatialIndex()
 
 lineslayer = processing.getObject(Lines)
 linesprvder = lineslayer.dataProvider()
@@ -210,125 +252,67 @@ for feat in processing.features(lineslayer):
 	progress.setPercentage(int(100*l/n))
 	l+=1
 	
-	geom = feat.geometry()
-	lines[(feat[Start_Name], feat[End_Name])] = {}
+	fid = feat.id()
+	pathPolyline = list(feat.geometry().asPolyline())
 	
-	startpts[feat[Start_Name]] = geom.vertexAt(0)
+	startnode =  connectTNode(pathPolyline[0], stix, transitix, G, buff, "in")
+	endnode = connectTNode(pathPolyline[-1], endix, fullix, G, buff, "out")
 	
-	if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
-	endpts[feat[End_Name]] = geom.vertexAt(len(geom.asPolyline())-1)
+	if startnode == -1:
+		progress.setInfo("Start point of path {0} not connected".format(feat.id()))
+	elif endnode == -1:
+		progress.setInfo("End point of path {0} not connected".format(feat.id()))
+	else :
+		path[fid] = {'st': startnode, 'end': endnode}
 
 
+# Shortest time for each start point
 
-# connect start and end pts to graph
-max_n = max(Nodes)
-badstart = []
-badend = []
-
-for s,p in startpts.iteritems():	
-			
-	near = ix.intersects(buffRect(p, buff))
-	
-	if len(near)==0:
-		progress.setText("Start point {0} not connected".format(s))
-		badstart.append(s)
-		
-	else:
-		# create new node
-		max_n += 1
-		Nodes[max_n] = G.addVertex(p)
-		startpts[s] = Nodes[max_n]
-						
-		for i in near:
-			
-			pt = G.vertex(i).point()
-		
-			# waiting time		
-			wait = min(tmax, node_freq[i] + sqrt(p.sqrDist(pt)) * 0.015)
-			
-			if Park_ride: cost = [wait, 0, wait, 'walk', s+str(i), 0, wait]
-			else: cost = [wait, 0, wait, 'walk', s+str(i)]
-			
-			G.addArc(Nodes[max_n], i, cost)
-			ageom[s+str(i)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
-
-for s,p in endpts.iteritems():	
-			
-	# find points in full index, including on road
-	near = fullix.intersects(buffRect(p, buff))
-	
-	if len(near)==0:
-		progress.setText("End point {0} not connected".format(s))
-		badend.append(s)
-		
-	else:
-		# create new node
-		max_n += 1
-		Nodes[max_n] = G.addVertex(p)
-		endpts[s] = Nodes[max_n]
-		wait = 0
-						
-		for i in near:
-			
-			pt = G.vertex(i).point()
-					
-			if Park_ride: cost = [wait, 0, wait, 'walk'+sep, s+str(i)+sep, 0, wait]
-			else: cost = [wait, 0, wait, 'walk'+sep, s+str(i)+sep]
-			
-			G.addArc(i, Nodes[max_n], cost)
-			ageom[s+str(i)] = QgsGeometry().fromPolyline([pt, p]).exportToWkt()
-
-
-pairs = {x:[] for x in set([x[0] for x in lines]) if x not in badstart}
-for s,e in lines:
-	if e not in badend: pairs[s].append(e)
-
-
-
-# Shortest times per start point
-
-progress.setText('Shortest times...')
-
-max_n = len(Nodes)
-n = len(pairs)
+progress.setInfo("Shortest times")
+n = len(path)
 l = 0
+startpts = {x['st']:[] for x in path.values()}
+for k,v in path.iteritems():
+	startpts[v['st']].append(k)
 
-for st in pairs:
+
+for k,v in startpts.iteritems():
 	progress.setPercentage(int(100*l/n))
 	l+=1
 	
-	stpt = startpts[st]
-	ends = [endpts[x] for x in pairs[st]]
-	
-	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, stpt, 0)
-
-	# accessible nodes with length
-	valid = set([i for i in ends if tree[i] != -1])
-	
-	# secondary values
-	param = accumulateArcs(G, stpt, valid, tree, 1)
-	
-    # add park and ride cost
-	if Park_ride:
-		for i in [x for x in valid if param[x][4] > 0]:					
-			cost[i] = param[i][5]
-
-    # built list of unique modes
-	for i in valid:
+	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, k, 0)
+		
+	valid = [i for i in [path[x]['end'] for x in v] if tree[i] != -1]
+	param = accumulateArcs(G, k, valid, tree, 1)
+    
+	for e in v:
+		endpt = path[e]['end']
+		if Park_ride:
+			path[e]['cost'] = param[endpt][5]
+			path[e]['rcost'] = param[endpt][4]
+		else: path[e]['cost'] = cost[endpt]
+		
+		path[e]['transf'] = param[endpt][0]
+		path[e]['trcost'] = param[endpt][1]
+		path[e]['arcs'] = param[endpt][3].split(sep)[1:-1]
+		
+		# built list of unique modes
 		txt = param[i][2].split(sep)
-		if len(txt) == 0: param[i][2] = ''
-		elif len(txt) == 1: param[i][2] = txt[0]
-		else: param[i][2] = sep.join(list(set(txt) - set(['walk', 'road'])))
-
-    # assign costs and params to lines
-	for e in pairs[st]:
-		lines[(st, e)] = {'cost': cost[endpts[e]], 'param': param[endpts[e]]}
+		if len(txt) == 0: path[e]['modes'] = ''
+		elif len(txt) == 1: path[e]['modes'] = txt[0]
+		else: path[e]['modes'] = sep.join(list(set(txt) - set(['walk', 'road'])))
+		
 
 
 # load path geometry
-fids = set([long(y) for x in lines.values() for y in x['param'][3].split(sep)[1:-1]])
-r = QgsFeatureRequest().setFilterFids(list(fids))
-ageom.update({str(f.id()):f.geometry().exportToWkt() for f in netLayer.getFeatures(r)})
+
+arcGeom = {}
+fids = set([long(y) for x in path.values() for y in x['arcs']])
+
+for feat in processing.features(netLayer):
+	if feat.id() in fids:
+		arcGeom[str(feat.id())] = feat.geometry().exportToWkt()
+
 
 
 # Prepare results
@@ -345,36 +329,43 @@ if Park_ride: fields.append(QgsField("driveCost", QVariant.Double))
 writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPder.crs()) 
 
 l = 0
-max_n = len(lines)
+max_n = len(path)
 
 for feat in processing.features(lineslayer):
 	progress.setPercentage(int(100 * l/max_n))
 	l+=1
-	
-	attrs = feat.attributes()
-	
-	pstart = pairs[feat[Start_Name]]
-	res = lines[(feat[Start_Name], feat[End_Name])]
-	
-	glist = [ageom[x] for x in res['param'][3].split(sep)[1:-1]]
-	
-	polylist = [] # a list of Polyline
-	
-	for x in glist:
-		geom = QgsGeometry().fromWkt(x)		
-		if geom.isMultipart():
-			geom = geom.asGeometryCollection()	
-			polylist.extend([x.asPolyline() for x in geom])
-		else: polylist.append(geom.asPolyline())
-		
-		resfeat.setGeometry(QgsGeometry().fromPolyline(reversed(mergePolylines(polylist))))
 
+	fid = feat.id()	
+	if fid in path:
+
+		res = path[fid]
+
+		polylist = []
 	
-	attrs.extend([res['cost'], int(res['param'][0]), res['param'][1], res['param'][2]])
-	
-	if Park_ride: attrs.append(res['param'][4])
+		for x in [arcGeom[x] for x in res['arcs']]:
+			geom = QgsGeometry().fromWkt(x)		
+			if geom.isMultipart():
+				geom = geom.asGeometryCollection()	
+				polylist.extend([x.asPolyline() for x in geom])
+			else: polylist.append(geom.asPolyline())
 		
-	resfeat.setAttributes(attrs)
-	writer.addFeature(resfeat)
+		stpt = G.vertex(res['st']).point()
+		endpt = G.vertex(res['end']).point()
+		
+		if len(polylist) == 0:
+			resfeat.setGeometry(QgsGeometry().fromPolyline([stpt, endpt]))
+		else:
+			pline = mergePolylines(polylist)
+			pline.reverse()
+			pline = [stpt] + pline + [endpt]
+			resfeat.setGeometry(QgsGeometry().fromPolyline(pline))
+	
+		attrs = feat.attributes()	
+		attrs.extend([res['cost'], int(res['transf']), res['trcost'], res['modes']])
+	
+		if Park_ride: attrs.append(res['rcost'])
+		
+		resfeat.setAttributes(attrs)
+		writer.addFeature(resfeat)
 
 del writer

@@ -1,7 +1,5 @@
 ##[Network]=group
 ##Lines=vector
-##Start_Name=field Lines
-##End_Name=field Lines
 ##Start_distance=number 200
 ##Start_speed=number 15
 ##Road_network=vector
@@ -32,37 +30,44 @@ def buffRect(point, b):
     return QgsRectangle(x-b, y-b, x+b, y+b)
 
 
-def stkey(p, stix, nodeix, graph, b):
+def connectNode(p, newix, nodeix, graph, buff, dir):
 	''' find and return graph node corresponding to pts
 		if point not connected, return -1
-		if no startpoint stix index, add to graph, add to index ix and connect to graph'''
+		if no point exists in stix index, find close points, add to index and connect to graph
+		else return point'''
 	
-	stnear = stix.intersects(buffRect(p, buff))
-	if len(stnear)==0:			# no existing start node in buffer, create and index one
+	br = buffRect(p, buff)
+	
+	near = newix.intersects(br)
+
+	if len(near) == 0:			# no existing start node in buffer, create and index one
 		
-		graphnear = nodeix.intersects(buffRect(p, buff))
+		gnear = nodeix.intersects(br)
 		
-		if len(graphnear) == 0: return -1    # no graph node to connect to
+		if len(gnear) == 0:
+			return -1    # no graph node to connect to
+		
 		else:
 			res = G.addVertex(p)
-			indexFeat(stix, res, p)
+			indexFeat(newix, res, p)
 			
-			for i in graphnear:
-				pt = G.vertex(i).point()
-				dist = sqrt(p.sqrDist(pt)) * ratio
-				G.addArc(res, i, [dist, 0, str(res) + str(i)])
-				G.addArc(i, res, [dist, 0, str(i) + str(res)])
-				ageom[str(res)+str(i)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
-				ageom[str(i)+str(res)] = QgsGeometry().fromPolyline([p, pt]).exportToWkt()
-	
+			for i in gnear:
+				if dir == 'in':
+					G.addArc(res, i, [sqrt(p.sqrDist(G.vertex(i).point())) * ratio,
+								  	  0, str(res) + str(i)])
+				elif dir == 'out':
+					G.addArc(i, res, [sqrt(p.sqrDist(G.vertex(i).point())) * ratio,
+								  	  0, str(i) + str(res)])
+
 			return res
 		
-	else: return stnear[0]
+	else: return near[0]
+
 
 
 def mergePolylines(lines):
 	''' merge list of wkb lines,
-	lines parameter is a list of wkb Polylines, Multipolylines must be exploded
+	lines parameter is a list of wkb Polylines, Multipolylines must be exploded before
 	the two closest end/start of lines in the order of the list will be merged
 	returns as Wkb linestring'''
 	
@@ -138,9 +143,9 @@ fields = netPrder.fields()
 fieldnames = netPrder.fieldNameMap()
 n = netLayer.featureCount()
 
-if netLayer.fieldNameIndex("from")==-1: progress.setText("Erreur: Pas de champ from")
-if netLayer.fieldNameIndex("to")==-1: progress.setText("Erreur: Pas de champ to")
-if netLayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ dir")
+if netLayer.fieldNameIndex("from")==-1: progress.setInfo("Erreur: Pas de champ from")
+if netLayer.fieldNameIndex("to")==-1: progress.setInfo("Erreur: Pas de champ to")
+if netLayer.fieldNameIndex("dir")==-1: progress.setInfo("Erreur: Pas de champ dir")
 
 
 
@@ -148,11 +153,10 @@ if netLayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ di
 
 G = QgsGraph()
 Nodes = {} 					 #  key: id du Road_network, valeur = id du graph
-ageom = {}				 # store geometry as wkt by feature id for graph, by name+i for start and end connections
 Arc_ix = []
 l = 0
 
-progress.setText("Build graph...")
+progress.setInfo("Build graph")
 
 for feat in processing.features(netLayer):
 	progress.setPercentage(int(100*l/n))
@@ -179,11 +183,14 @@ for feat in processing.features(netLayer):
         if direction == -1 or direction == 2: Arc_ix.append([n_end, n_begin, cost])
 
 
+
 # Built index of nodes to connect starting points and to graph
 feat_index = QgsFeature()
 ix = QgsSpatialIndex()
 
-for k in Nodes:                   # add to graph, store graph value in place of point geom and index
+# add nodes to graph, store graph value in place of point geom and index
+
+for k in Nodes:
 	p = Nodes[k]   # store point
 	Nodes[k] = G.addVertex(p)
 	indexFeat(ix, Nodes[k], p)
@@ -194,10 +201,11 @@ for a in Arc_ix:								# add arcs to graph
 
 
 # Imports path
-progress.setText('Import path')
+progress.setInfo('Import paths')
 
 path = {}
-keyix = QgsSpatialIndex()
+stix = QgsSpatialIndex()
+endix = QgsSpatialIndex()
 
 lineslayer = processing.getObject(Lines)
 linesprvder = lineslayer.dataProvider()
@@ -209,56 +217,57 @@ for feat in processing.features(lineslayer):
 	progress.setPercentage(int(100*l/n))
 	l+=1
 	
-	geom = feat.geometry()
-	pathpoly = list(geom.asPolyline())
-	path[feat.id()] = {'pts':[stkey(x, keyix, ix, G, buff) for x in patpoly], 'path':[]}
+	fid = feat.id()
+	pathPolyline = list(feat.geometry().asPolyline())
 	
-	if len([x for x in path[feat.id()]['pts'] if x == -1]) > 0:
-		progress.setText("One point of path {0} not connected".format(feat.attributes()))
-		del path[feat.id()]
-
-pairs = {x:set() for x in set([v['pts'][:-1] for v in path.values()])}
-
-for p in path:
-	for i in range(len(path[p]['pts'][:-1])):
-		pairs[path[p]['pts'][i]].add(path[p]['pts'][i + 1])
+	startnode =  connectNode(pathPolyline[0], stix, ix, G, buff, "in")
+	endnode = connectNode(pathPolyline[-1], endix, ix, G, buff, "out")
 	
+	if startnode == -1:
+		progress.setInfo("Start point of path {0} not connected".format(feat.id()))
+	elif endnode == -1:
+		progress.setInfo("End point of path {0} not connected".format(feat.id()))
+	else :
+		path[fid] = {'st': startnode, 'end': endnode}
 
 
-# Shortest time per object
+# Shortest time for each start point
 
-list_d = Nodes.values()
-max_n = len(Nodes)
-n = len(pairs)
+progress.setInfo("Shortest times")
+n = len(path)
 l = 0
+startpts = {x['st']:[] for x in path.values()}
+for k,v in path.iteritems():
+	startpts[v['st']].append(k)
 
-progress.setText("Shortest times...")
 
-for st in pairs:
+for k,v in startpts.iteritems():
 	progress.setPercentage(int(100*l/n))
 	l+=1
 	
-	stpt = startpts[st]
-	ends = [endpts[x] for x in pairs[st]]
-	
-	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, stpt, 0)
-	
-	valid = set([i for i in ends if tree[i] != -1])
-	param = accumulateArcs(G, stpt, valid, tree, 1)
+	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, k, 0)
+		
+	valid = [i for i in [path[x]['end'] for x in v] if tree[i] != -1]
+	param = accumulateArcs(G, k, valid, tree, 1)
     
-	for e in pairs[st]:
-		lines[(st, e)] = {'cost': cost[endpts[e]], 'param': param[endpts[e]]}
+	for e in v:
+		endpt = path[e]['end']
+		path[e]['cost'] = cost[endpt]
+		path[e]['arcs'] = param[endpt][1].split(sep)[1:-1]
+		path[e]['scost'] = param[endpt][0]
 
-# delete not found lines
-lines = {k:v for k,v in lines.iteritems() if len(v) > 0}
 
 # load path geometry
-fids = set([long(y) for x in lines.values() for y in x['param'][1].split(sep)[1:-1]])
-r = QgsFeatureRequest().setFilterFids(list(fids))
-ageom.update({str(f.id()):f.geometry().exportToWkt() for f in netLayer.getFeatures(r)})
+
+arcGeom = {}
+fids = set([long(y) for x in path.values() for y in x['arcs']])
+
+for feat in processing.features(netLayer):
+	if feat.id() in fids:
+		arcGeom[str(feat.id())] = feat.geometry().exportToWkt()
 
 
-# Prepare results
+# make results
 
 fields = linesprvder.fields()
 fields.append(QgsField(Cost, QVariant.Double))
@@ -268,32 +277,40 @@ writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPrder.crs())
 
 l = 0
 resfeat = QgsFeature()
-max_n = len(lines)
+max_n = len(path)
 
 
 for feat in processing.features(lineslayer):
 	progress.setPercentage(int(100 * l/max_n))
 	l+=1
-	if (feat[Start_Name], feat[End_Name]) in lines:
-		pstart = pairs[feat[Start_Name]]
-		res = lines[(feat[Start_Name], feat[End_Name])]
-		
+	
+	fid = feat.id()
+	if fid in path:
+		res = path[fid]
+
 		polylist = []
 	
-		glist = [ageom[x] for x in res['param'][1].split(sep)[1:-1]]
-	
-		for x in glist:
+		for x in [arcGeom[x] for x in res['arcs']]:
 			geom = QgsGeometry().fromWkt(x)		
 			if geom.isMultipart():
 				geom = geom.asGeometryCollection()	
 				polylist.extend([x.asPolyline() for x in geom])
 			else: polylist.append(geom.asPolyline())
 		
-		resfeat.setGeometry(QgsGeometry().fromPolyline(reversed(mergePolylines(polylist))))
+		stpt = G.vertex(res['st']).point()
+		endpt = G.vertex(res['end']).point()
+		
+		if len(polylist) == 0:
+			resfeat.setGeometry(QgsGeometry().fromPolyline([stpt, endpt]))
+		else:
+			pline = mergePolylines(polylist)
+			pline.reverse()
+			pline = [stpt] + pline + [endpt]
+			resfeat.setGeometry(QgsGeometry().fromPolyline(pline))
 	
 		attrs = feat.attributes()
 		attrs.append(res['cost'])
-		if Subtotal: attrs.append(res['param'][0])
+		if Subtotal: attrs.append(res['scost'])
 
 		resfeat.setAttributes(attrs)
 		writer.addFeature(resfeat)
