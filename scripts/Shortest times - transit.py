@@ -93,16 +93,16 @@ m_VP = 20           # maximum amount of car time (minutes)
 sep = "/"			# separator for modes list
 
 
-networklayer = processing.getObject(Transit_network)
-networkprovider = networklayer.dataProvider()
-fieldnames = networkprovider.fieldNameMap()
-n = networklayer.featureCount()
+netLayer = processing.getObject(Transit_network)
+netPder = netLayer.dataProvider()
+fieldnames = netPder.fieldNameMap()
+step = max(1, netLayer.featureCount() / 100)
 
-if networklayer.fieldNameIndex("from")==-1: progress.setText("No field from")
-if networklayer.fieldNameIndex("to")==-1: progress.setText("No field to")
-if networklayer.fieldNameIndex("dir")==-1: progress.setText("No field dir")
-if networklayer.fieldNameIndex("freq")==-1: progress.setText("No field freq")
-if networklayer.fieldNameIndex("mode")==-1: progress.setText("No field mode")
+if netLayer.fieldNameIndex("from")==-1: progress.setText("No field from")
+if netLayer.fieldNameIndex("to")==-1: progress.setText("No field to")
+if netLayer.fieldNameIndex("dir")==-1: progress.setText("No field dir")
+if netLayer.fieldNameIndex("freq")==-1: progress.setText("No field freq")
+if netLayer.fieldNameIndex("mode")==-1: progress.setText("No field mode")
 
 
 G = QgsGraph()
@@ -112,8 +112,8 @@ Arc_ix = []					 # list of arcs to add to graph
 
 
 l = 0
-for feat in processing.features(networklayer):
-	progress.setPercentage(int(100*l/n))
+for feat in processing.features(netLayer):
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	direction = feat["dir"]
@@ -181,11 +181,11 @@ startpts = []
 max_n = max(Nodes)
 
 startslayer = processing.getObject(Starts)
-n = startslayer.featureCount()
+step = max(1, startslayer.featureCount() / 100)
 
 l = 0
 for feat in processing.features(startslayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 			
 	# find nodes in buffer
@@ -226,7 +226,7 @@ progress.setText('Shortest times...')
 
 nodes_d = set(Nodes.values())
 max_n = len(Nodes)
-n = len(startpts)
+step = max(1, len(startpts) / 100)
 
 accnodes = set()
 
@@ -234,7 +234,7 @@ l = 0
 
 
 for st in startpts:
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	stpt = st['vertex']
@@ -297,6 +297,7 @@ for st in startpts:
 
 l = 0
 max_n = len(accnodes)
+step = step = max(1, max_n / 100)
 node_feat = QgsFeature()
 
 fields = [
@@ -310,11 +311,11 @@ fields = [
 		  ]
 if Park_ride: fields.append(QgsField("driveCost", QVariant.Double))
 
-writer = VectorWriter(Results, None, fields, QGis.WKBPoint, networkprovider.crs()) 
+writer = VectorWriter(Results, None, fields, QGis.WKBPoint, netPder.crs())
 
 
 for k,v in [(k,v) for k,v in Nodes.iteritems() if v in accnodes]:
-	progress.setPercentage(int(100 * l/max_n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 				
 	geom = QgsGeometry().fromPoint(G.vertex(v).point())

@@ -17,14 +17,14 @@ levels = [float(x) for x in Levels.split(";")]
 
 nodeLayer = processing.getObject(Points)
 nodePrder = nodeLayer.dataProvider()
-n = nodeLayer.featureCount()
+step = max(1, nodeLayer.featureCount() / 100)
 l = 0
 
 pts = {}
 
 
 for feat in processing.features(nodeLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	if Group_by_field:
@@ -53,11 +53,11 @@ writer = VectorWriter(Results, None, fields, QGis.WKBMultiPolygon, nodePrder.crs
 
 feat = QgsFeature()
 
-n = len(pts)
+step = max(1, len(pts)/100)
 l = 0
 
 for k in pts.keys():
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	if Group_by_field:

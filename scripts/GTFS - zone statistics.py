@@ -38,8 +38,9 @@ num_j = dt.date(Day[2], Day[1], Day[0]).weekday()+1
 
 progress.setText("Day: {0:%A}".format(dt.date(Day[2], Day[1], Day[0])))
 
-step = Step_in_minutes
-nillist = [0] * (24 * 60 / step)
+if Hour_details: step = Step_in_minutes
+else: step = 60
+nillist = [0] * (24 * 60 / stepMin)
 
 
 zonelayer = processing.getObject(Zones)
@@ -170,7 +171,7 @@ else :
 				if not freq_exists or rid not in routefq:
 					H = HMS(dep)
 					if H >= 1440: H = H - 1440        # H after 24:00:00				
-					nodes[key][int(H / step)] += 1
+					nodes[key][int(H / stepMin)] += 1
 			
 				else: routefq[rid]['nodes'].append((key, row['stop_sequence'], HMS(dep)))
 
@@ -184,7 +185,7 @@ else :
 			for i in zip(nlist, r['table']):
 				H = int((i[1] + i[0][2] - st))
 				if H >= 1440: H = H - 1440       # H after 24:00:00
-				nodes[i[0][0]][int(H/step)] += 1
+				nodes[i[0][0]][int(H/stepMin)] += 1
 
 
 	# Index nodes
@@ -205,7 +206,7 @@ else :
 	
 
 
-	n = zonelayer.featureCount()
+	step = max(1, zonelayer.featureCount() / 100
 	l = 0
 	fields = zoneprovider.fields()
 
@@ -217,21 +218,24 @@ else :
 		fields.append(QgsField("start", QVariant.String))
 		fields.append(QgsField("end", QVariant.String))
 
-	else: fields.append(QgsField("amplitude", QVariant.String))
+	else:
+		fields.append(QgsField("amplitude", QVariant.String))
+		fields.append(QgsField("freq_max", QVariant.Int))
 
 
 	writer = VectorWriter(Results, None, fields, QGis.WKBPolygon, zoneprovider.crs())
 
 
 	for feat in processing.features(zonelayer):
-		progress.setPercentage(int(100*l/n))
+		if l % step == 0: progress.setPercentage(l/step)
 		l+=1
 	
 		attrs = feat.attributes()
 		geom = feat.geometry()
 	
 		if Buffer == 0:			# no buffer, take object only, else buffer around centroid
-			near = index.intersects(geom.boundingBox())
+			near = [x for x in index.intersects(geom.boundingBox())
+					if geom.contains(stops[nodes_ix[x][0]])]
 		else:
 			near = index.intersects(buffRect(geom.centroid().asPoint(), Buffer))
 	
@@ -251,13 +255,13 @@ else :
 				# loop on index with at least 1 transit stop in range
 				for i in [x for x in range(len(v_freq)) if v_freq[x] != 0]:
 				
-					t = i * step
+					t = i * stepMin
 					attrs.append(v_routes[i])
 					attrs.append(v_freq[i])
 				
 					attrs.append(str(dt.datetime(Day[2], Day[1], Day[0], t/60, t%60)))
 				
-					t1 = t + step
+					t1 = t + stepMin
 					if t1 >= 1440: t1 = t1 - 1440
 					attrs.append(str(dt.datetime(Day[2], Day[1], Day[0], t1/60, t1%60)))
 				
@@ -265,10 +269,11 @@ else :
 					writer.addFeature(feat)
 				
 			else:
+				amplfr = [x for x in v_freq if x > 0]
 				attrs.append(sum(v_routes))
 				attrs.append(sum(v_freq))
-				attrs.append(len([x for x in v_freq if x > 0]))
-			
+				attrs.append(len(amplfr))
+				attrs.append(max(amplfr))
 			
 				feat.setAttributes(attrs)
 				writer.addFeature(feat)

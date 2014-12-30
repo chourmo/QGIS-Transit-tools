@@ -1,14 +1,14 @@
 ##[Network]=group
 ##Starts=vector
 ##Name=field Starts
-##Start_distance=number 500
+##Start_distance=number 200
 ##Start_speed=number 15
 ##Road_network=vector
 ##Cost=field Road_network
 ##Reverse_cost=field Road_network
 ##Max_total_time=number 100
-##Subtotal=boolean False
-##Subtotal_cost=field Road_network
+##Secondary_Sum=boolean False
+##Secondary_Sum_cost=field Road_network
 ##Results=output vector
 
 from processing.core.VectorWriter import VectorWriter 
@@ -88,7 +88,7 @@ netLayer = processing.getObject(Road_network)
 networkPrder = netLayer.dataProvider()
 fields = networkPrder.fields()
 fieldnames = networkPrder.fieldNameMap()
-n = netLayer.featureCount()
+step = max(1, netLayer.featureCount() / 100)
 
 if netLayer.fieldNameIndex("from")==-1: progress.setText("Erreur: Pas de champ from")
 if netLayer.fieldNameIndex("to")==-1: progress.setText("Erreur: Pas de champ to")
@@ -100,14 +100,13 @@ if netLayer.fieldNameIndex("dir")==-1: progress.setText("Erreur: Pas de champ di
 
 G = QgsGraph()
 Nodes = {} 					 #  key: id du Road_network, valeur = id du graph
-Arc_feat = {} 				 # dict des attributs, key numero d'arc Road_network
 Arc_ix = []
 l = 0
 
 progress.setText("Build graph...")
 
 for feat in processing.features(netLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	direction = feat["dir"]
@@ -122,7 +121,7 @@ for feat in processing.features(netLayer):
 		Nodes[n_end] = geom.vertexAt(len(geom.asPolyline())-1)
 		
 		cost = [feat[Cost], 0]
-		if Subtotal: cost[1] = feat[Subtotal_cost]
+		if Secondary_Sum: cost[1] = feat[Secondary_Sum_cost]
         
 		#Add arcs to index
 		if direction == 1 or direction == 2: Arc_ix.append([n_begin, n_end, cost])
@@ -180,13 +179,13 @@ for feat in processing.features(objectlayer):
 
 list_d = Nodes.values()
 max_n = len(Nodes)
-n = len(startpts)
+step = max(1, len(startpts) / 100)
 l=0
 
 progress.setText("Shortest times...")
 
 for st in startpts:
-    progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
     l+=1
     
     startpt = st['vertex']
@@ -197,7 +196,7 @@ for st in startpts:
     for i in [x for x in list_d if tree[x]==-1 or st['l'][x] > maxcost]:
     	st['l'][i] = -1
     
-    if Subtotal:
+    if Secondary_Sum:
     	list_acc = [i for i in list_d if st['l'][i] != -1]
         res = accumulateArcs(G, startpt, list_acc, tree, 1)
         st['stot'] = {x:res[x][0] for x in list_acc}
@@ -212,16 +211,17 @@ fields = [
 		  QgsField("isClosest", QVariant.String)
 		  ]
 
-if Subtotal: fields.append(QgsField(Subtotal_cost, QVariant.Double))
+if Secondary_Sum: fields.append(QgsField(Secondary_Sum_cost, QVariant.Double))
 
 		
 writer = VectorWriter(Results, None, fields, QGis.WKBPoint, networkPrder.crs()) 
 
 l = 0
 node_feat = QgsFeature()
+step = max(1, max_n / 100)
 
 for k,v in Nodes.iteritems():
-	progress.setPercentage(int(100 * l/max_n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 			
 	geom = QgsGeometry().fromPoint(G.vertex(v).point())
@@ -238,7 +238,7 @@ for k,v in Nodes.iteritems():
 			attrs = [k, start['name'], start['l'][v], 'N']
 			
 			if start['name'] == minst: attrs[3] = 'Y'
-			if Subtotal: attrs.append(start['stot'][v])
+			if Secondary_Sum: attrs.append(start['stot'][v])
 				
 			node_feat.setAttributes(attrs)
 			writer.addFeature(node_feat)

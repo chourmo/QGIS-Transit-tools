@@ -150,7 +150,7 @@ sep = "/"			# separator for modes list
 netLayer = processing.getObject(Transit_network)
 netPder = netLayer.dataProvider()
 fieldnames = netPder.fieldNameMap()
-n = netLayer.featureCount()
+step = max(1, netLayer.featureCount() / 100)
 
 if netLayer.fieldNameIndex("from")==-1: progress.setInfo("No field from")
 if netLayer.fieldNameIndex("to")==-1: progress.setInfo("No field to")
@@ -166,7 +166,7 @@ Arc_ix = []					 # list of arcs to add to graph
 
 l = 0
 for feat in processing.features(netLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	direction = feat["dir"]
@@ -245,11 +245,11 @@ endix = QgsSpatialIndex()
 lineslayer = processing.getObject(Lines)
 linesprvder = lineslayer.dataProvider()
 
-n = lineslayer.featureCount()
+step = max(1, lineslayer.featureCount()/100)
 
 l = 0
 for feat in processing.features(lineslayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	fid = feat.id()
@@ -269,15 +269,16 @@ for feat in processing.features(lineslayer):
 # Shortest time for each start point
 
 progress.setInfo("Shortest times")
-n = len(path)
 l = 0
 startpts = {x['st']:[] for x in path.values()}
 for k,v in path.iteritems():
 	startpts[v['st']].append(k)
 
+step = max(1, len(startpts) / 100)
+
 
 for k,v in startpts.iteritems():
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, k, 0)
@@ -305,11 +306,14 @@ for k,v in startpts.iteritems():
 
 
 # load path geometry
-
+l = 0
+step = max(1, netLayer.featureCount() / 100)
 arcGeom = {}
 fids = set([long(y) for x in path.values() for y in x['arcs']])
 
 for feat in processing.features(netLayer):
+	if l % step == 0: progress.setPercentage(l/step)
+	l += 1
 	if feat.id() in fids:
 		arcGeom[str(feat.id())] = feat.geometry().exportToWkt()
 
@@ -330,9 +334,10 @@ writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPder.crs())
 
 l = 0
 max_n = len(path)
+step = max(1, max_n / 100)
 
 for feat in processing.features(lineslayer):
-	progress.setPercentage(int(100 * l/max_n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	fid = feat.id()	

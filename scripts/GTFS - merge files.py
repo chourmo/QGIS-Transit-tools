@@ -138,7 +138,7 @@ maxfiles = ['/' + x for x in set(maxfiles)]
 
 
 # dict of fields used as index by GTFS, one for each folder
-ix = {d: {x:{} for x in [y['key'] for y in ref if y['key']!=0]} for d in dirnames}
+ix = {d: {x:{} for x in [y['key'] for y in ref if y['key'] != 0]} for d in dirnames}
 
 
 # result folder path
@@ -156,7 +156,7 @@ else:
 	# loop on each file name
 	for r in [x for x in ref if x['name'] in maxfiles]:
 		
-		progress.setText("start fusion of {0}".format(r['name']))
+		progress.setText("start fusion of {0} files".format(r['name'][1:-4]))
 		name = r['name']
 		key = r['key']
 		f = set()
@@ -164,11 +164,11 @@ else:
 		# kmax max value of key index values
 		if key != 0:
 			
-			# if only empty indexes
-			if sum([len(ix[x][key]) for x in dirnames]) == 0:
-				kmax = 0
-			else:					# already filled index
-				kmax = max([max(ix[x][key].values()) for x in dirnames]) + 1
+			# if indexes never filled
+			if sum([len(ix[x][key]) for x in dirnames]) == 0: kmax = 0
+			
+			# already filled index
+			else: kmax = max([max(ix[x][key].values()) for x in dirnames]) + 1
 		
 		# list of fields with new values for file
 		klist = [x for x in r.keys() if x not in ['name', 'key']]
@@ -189,6 +189,8 @@ else:
 		for d in [x for x in dirnames if os.path.exists(x + name)]:
 			progress.setPercentage(int(100 * lfiles / nfiles))
 			lfiles += 1
+			
+			progress.setText('write {0}'.format(d))
 					
 			with open(d + name) as csvfile:
 				for row in UnicodeDictReader(csvfile):
@@ -209,3 +211,5 @@ else:
 							row[k] = ix[d][r[k]][row[k]]
 					
 					writer.writerow(row)
+					
+		progress.setText("{0} files merged".format(r['name'][1:-4]))

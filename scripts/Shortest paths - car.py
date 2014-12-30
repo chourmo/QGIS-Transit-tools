@@ -5,8 +5,8 @@
 ##Road_network=vector
 ##Cost=field Road_network
 ##Reverse_cost=field Road_network
-##Subtotal=boolean False
-##Subtotal_cost=field Road_network
+##Secondary_Sum=boolean False
+##Secondary_Sum_cost=field Road_network
 ##Results=output vector
 
 from processing.core.VectorWriter import VectorWriter 
@@ -141,7 +141,7 @@ netLayer = processing.getObject(Road_network)
 netPrder = netLayer.dataProvider()
 fields = netPrder.fields()
 fieldnames = netPrder.fieldNameMap()
-n = netLayer.featureCount()
+step = max(1, netLayer.featureCount() / 100)
 
 if netLayer.fieldNameIndex("from")==-1: progress.setInfo("Erreur: Pas de champ from")
 if netLayer.fieldNameIndex("to")==-1: progress.setInfo("Erreur: Pas de champ to")
@@ -159,7 +159,7 @@ l = 0
 progress.setInfo("Build graph")
 
 for feat in processing.features(netLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	direction = feat["dir"]
@@ -174,7 +174,7 @@ for feat in processing.features(netLayer):
 		Nodes[n_end] = geom.vertexAt(len(geom.asPolyline())-1)
 		
 		cost = [feat[Cost], 0, str(feat.id()) + sep]
-		if Subtotal: cost[1] = feat[Subtotal_cost]
+		if Secondary_Sum: cost[1] = feat[Secondary_Sum_cost]
         
 		#Add arcs to index
 		if direction == 1 or direction == 2: Arc_ix.append([n_begin, n_end, cost])
@@ -210,11 +210,11 @@ endix = QgsSpatialIndex()
 lineslayer = processing.getObject(Lines)
 linesprvder = lineslayer.dataProvider()
 
-n = lineslayer.featureCount()
+step = max(1, lineslayer.featureCount() / 100)
 
 l = 0
 for feat in processing.features(lineslayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	fid = feat.id()
@@ -231,10 +231,12 @@ for feat in processing.features(lineslayer):
 		path[fid] = {'st': startnode, 'end': endnode}
 
 
+
+
 # Shortest time for each start point
 
-progress.setInfo("Shortest times")
-n = len(path)
+progress.setInfo("Shortest times...")
+step = max(1, len(path)/100)
 l = 0
 startpts = {x['st']:[] for x in path.values()}
 for k,v in path.iteritems():
@@ -242,7 +244,7 @@ for k,v in path.iteritems():
 
 
 for k,v in startpts.iteritems():
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	(tree, cost) = QgsGraphAnalyzer.dijkstra(G, k, 0)
@@ -255,6 +257,7 @@ for k,v in startpts.iteritems():
 		path[e]['cost'] = cost[endpt]
 		path[e]['arcs'] = param[endpt][1].split(sep)[1:-1]
 		path[e]['scost'] = param[endpt][0]
+
 
 
 # load path geometry
@@ -271,17 +274,18 @@ for feat in processing.features(netLayer):
 
 fields = linesprvder.fields()
 fields.append(QgsField(Cost, QVariant.Double))
-if Subtotal: fields.append(QgsField(Subtotal_cost, QVariant.Double))
+if Secondary_Sum: fields.append(QgsField(Secondary_Sum_cost, QVariant.Double))
 		
 writer = VectorWriter(Results, None, fields, QGis.WKBLineString, netPrder.crs()) 
 
 l = 0
 resfeat = QgsFeature()
 max_n = len(path)
+step = max(1, lineslayer.featureCount() / 100)
 
 
 for feat in processing.features(lineslayer):
-	progress.setPercentage(int(100 * l/max_n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	fid = feat.id()
@@ -289,7 +293,7 @@ for feat in processing.features(lineslayer):
 		res = path[fid]
 
 		polylist = []
-	
+			
 		for x in [arcGeom[x] for x in res['arcs']]:
 			geom = QgsGeometry().fromWkt(x)		
 			if geom.isMultipart():
@@ -310,7 +314,7 @@ for feat in processing.features(lineslayer):
 	
 		attrs = feat.attributes()
 		attrs.append(res['cost'])
-		if Subtotal: attrs.append(res['scost'])
+		if Secondary_Sum: attrs.append(res['scost'])
 
 		resfeat.setAttributes(attrs)
 		writer.addFeature(resfeat)

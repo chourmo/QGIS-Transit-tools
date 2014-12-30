@@ -23,14 +23,14 @@ progress.setText("lvls {0}".format(levels))
 
 nodeLayer = processing.getObject(Points)
 nodePrder = nodeLayer.dataProvider()
-n = nodeLayer.featureCount()
+step = max(1, nodeLayer.featureCount()/100)
 l = 0
 
 pts = {}
 bpr = Buffer_parameter
 
 for feat in processing.features(nodeLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	if feat[Value_field] < maxlevel:
@@ -51,11 +51,11 @@ writer = VectorWriter(Contour, None, fields, QGis.WKBMultiPolygon, nodePrder.crs
 
 feat = QgsFeature()
 
-n = len(pts)
+step = max(1, len(pts) / 100)
 l = 0
 
 for k,v in pts.iteritems():
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	if Group_by_field: attrs = [k, 0]

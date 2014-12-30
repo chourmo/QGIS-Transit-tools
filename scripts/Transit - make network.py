@@ -11,7 +11,6 @@ from processing.core.VectorWriter import VectorWriter
 from qgis.core import * 
 from PyQt4.QtCore import * 
 from math import sqrt, ceil
-from operator import itemgetter
 
 import time
 import datetime
@@ -272,14 +271,13 @@ with open(Stop_times_file, 'rb') as csvfile:
 		
 			arrsstop = row['stop_id']
 			r = trips[t]
-			seq = int(row['stop_sequence'])
+			seq = int(row['stop_sequence']) - 1
 			a = row['arrival_time']
-			d = -1
+			d = -1					# -1 if not yet read from file, else value of previous arrival time
 			
 			frbased = (len(routes[r]['freq']) != 0)
 			
-			# if prevstop is previous stop in trip csv file
-			
+			# if prevstop is previous stop in stop_times csv file
 			if prevstop["trip"] == t and prevstop["order"] + 1 == seq:
 				depstop = prevstop["stop"]
 				d = prevstop["time"]
@@ -299,13 +297,15 @@ with open(Stop_times_file, 'rb') as csvfile:
 			prevstop = {"trip":t, "order":seq, "time":a, "stop":arrsstop}
 			
 			
-			# add arc to route if previous stop imported
+			# add arc to route if previous stop imported, else arc wont be imported
 			
 			if d != -1:
 
 				dp = HMS(d)
 				ar = HMS(a)
-			
+				
+				# check if arc in time range
+				
 				# if route frequencies based
 				if frbased:
 					tr = [i for i in range(len(hp)) if (
@@ -316,12 +316,12 @@ with open(Stop_times_file, 'rb') as csvfile:
 	
 
 				if len(tr) != 0:
+
 					npair += 1
-			
-					# Add arc at key (depstop, arrsstop) to route dict
+								
+					# Add arc to arcs dict
 				
 					key = (depstop, arrsstop)
-				
 					routes[r]['arcs'].setdefault(key, {'deptime':[],
 													   'arrtime':[],
 														   'num':seq,
@@ -329,10 +329,7 @@ with open(Stop_times_file, 'rb') as csvfile:
 														  'freq':0,
 														'trange':[0]*len(hp)})
 					
-					# add arc to route
-					
-					if frbased:
-					
+					if frbased:					
 						st = routes[r]['fstrt']
 						routes[r]['arcs'][key]['cost'] = ar - dp					
 						
@@ -345,8 +342,7 @@ with open(Stop_times_file, 'rb') as csvfile:
 						routes[r]['arcs'][key]['freq'] = len(l)
 											
 					else:
-					
-						routes[r]['arcs'][key]['cost'] += ar-dp								   
+						routes[r]['arcs'][key]['cost'] += ar - dp								   
 						routes[r]['arcs'][key]['deptime'].append(d[:5])
 						routes[r]['arcs'][key]['arrtime'].append(a[:5])
 						routes[r]['arcs'][key]['freq'] += 1
@@ -358,18 +354,11 @@ with open(Stop_times_file, 'rb') as csvfile:
 progress.setText("{0} arcs added".format(npair))
 
 
-# TO DO group routes with more than a number of identical sequence of arcs
-# TO DO identify branches on route, add differential frequencies to cost
-
-
-
-
 # Identify max frequency, calculate mean time length of route arcs if not frequency based
+
 maxfreq = 0
 
 for v in routes.values():
-
-
 	for p in v['arcs'].values():
 		if len(v['freq']) == 0: p['cost'] = p['cost'] / p['freq']
 		maxfreq = max(maxfreq, p['freq'])
@@ -398,7 +387,7 @@ if smooth:
 # Network export
 
 l = arcnum = nodenum = 0
-n = len(routes)
+step = max(1, len(routes) / 100)
 rangehp = range(len(hp))
 nbmin = [(x[1]-x[0]) for x in hp]
 feat = QgsFeature()
@@ -436,7 +425,7 @@ for k,v in routes.iteritems():
 
 	if len(v['arcs']) > 0:
 
-		progress.setPercentage(int((100 * l)/n))
+		if l % step == 0: progress.setPercentage(l/step)
 		l += 1
 
 		# Create unique id for each stop node

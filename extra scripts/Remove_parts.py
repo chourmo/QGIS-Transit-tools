@@ -13,7 +13,7 @@ from shapely.wkt import dumps
 
 polyLayer = processing.getObject(Polygons)
 polyPrder = polyLayer.dataProvider()
-n = polyLayer.featureCount()
+step = max(1, polyLayer.featureCount() / 100)
 l = 0
 
 writer = VectorWriter(Results, None, polyPrder.fields(),
@@ -21,7 +21,7 @@ writer = VectorWriter(Results, None, polyPrder.fields(),
 					  
 
 for feat in processing.features(polyLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	geom = loads(feat.geometry().asWkb())

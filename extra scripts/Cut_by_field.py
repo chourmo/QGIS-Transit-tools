@@ -12,14 +12,14 @@ from shapely.wkt import loads, dumps
 
 cutLayer = processing.getObject(Cutting_polygons)
 cutPrder = cutLayer.dataProvider()
-n = cutLayer.featureCount()
+step = max(1, cutLayer.featureCount() / 100)
 l = 0
 
 # key: key field, value: list of wkb geoms
 cutters = {}
 
 for feat in processing.features(cutLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	k = feat[Cut_Key_Field]
@@ -46,7 +46,7 @@ for k in cutters.keys():
 
 polyLayer = processing.getObject(Polygons)
 polyPrder = polyLayer.dataProvider()
-n = polyLayer.featureCount()
+step = max(1, polyLayer.featureCount() /100)
 l = 0
 
 writer = VectorWriter(Results, None, polyPrder.fields(),
@@ -54,7 +54,7 @@ writer = VectorWriter(Results, None, polyPrder.fields(),
 					  
 
 for feat in processing.features(polyLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	geom = feat.geometry()

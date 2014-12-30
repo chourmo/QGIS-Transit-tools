@@ -15,7 +15,7 @@ def buffRect(point, b):
 buff = Point_grouping_buffer
 cutLayer = processing.getObject(Lines)
 cutPrder = cutLayer.dataProvider()
-n = cutLayer.featureCount()
+step = max(1, cutLayer.featureCount() / 100)
 l = 0
 
 # build spatial index of lines
@@ -25,7 +25,7 @@ geom_ix = {}
 progress.setText("Index lines...")
 
 for feat in processing.features(cutLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	index.insertFeature(feat)
@@ -45,7 +45,7 @@ featgeom = QgsGeometry()
 resfeat = QgsFeature()
 
 for feat in processing.features(cutLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	near = index.intersects(feat.geometry().boundingBox())

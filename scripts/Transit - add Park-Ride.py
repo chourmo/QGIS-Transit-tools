@@ -1,6 +1,6 @@
 ##[Network]=group
 ##Network=vector
-##Frequency_max=number 10
+##Frequency_max=number 15
 ##Always_Valid_modes=string Tram;Metro;Train
 ##Roads=vector
 ##Cost=field Roads
@@ -15,6 +15,15 @@ from qgis.core import *
 from PyQt4.QtCore import *
 from itertools import product
 import time
+
+
+
+def indexPoint(index, i, pt):
+	f = QgsFeature()
+	f.setFeatureId(i)
+	f.setGeometry(QgsGeometry.fromPoint(pt))
+	index.insertFeature(f)
+
 
 
 
@@ -44,14 +53,14 @@ progress.setText('Import network')
 
 maxarc = maxnode = l = 0
 Nodes = {}
-n = transitLayer.featureCount()
+step = max(1, transitLayer.featureCount() / 100)
 
 writer = VectorWriter(Network_PR, None, transitProvider.fields(),
 					  QGis.WKBLineString, transitProvider.crs()) 
 
 
 for feat in processing.features(transitLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 
 	writer.addFeature(feat)
@@ -65,11 +74,11 @@ for feat in processing.features(transitLayer):
 		else: txt = feat["agency"] + " / " + feat["short_name"]
 	
 		p = geom.vertexAt(0)
-		Nodes.setdefault(feat["from"], [p, txt])
+		Nodes[feat["from"]] = [p, txt]
 	
 		if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
 		p = geom.vertexAt(len(geom.asPolyline())-1)
-		Nodes.setdefault(feat["to"], [p, txt])		
+		Nodes[feat["to"]] = [p, txt]		
 	
 		maxarc = max(maxarc, feat["arcid"])
 
@@ -81,15 +90,12 @@ maxnode = max(Nodes.keys())
 
 progress.setText('Index nodes')
 
-feat = QgsFeature()
 index = QgsSpatialIndex()
 
 
-for k,v in Nodes.iteritems():
+for k,v in Nodes.iteritems():	
+	indexPoint(index, k, v[0])
 
-	feat.setGeometry(QgsGeometry.fromPoint(v[0]))
-	feat.setFeatureId(k)
-	index.insertFeature(feat)
 
 
 progress.setText('Import TC')
@@ -108,7 +114,7 @@ outFeat = QgsFeature()
 maxnode += 1
 
 
-# default values for road agency
+# default values for road arcs
 
 resdict = {'route_id':'road',
 	     'short_name':'road',
@@ -128,27 +134,24 @@ keys = set(resdict.keys())
 for n in field_names:
 	if n not in keys: resdict[n] = 0
 
-n = roadLayer.featureCount()
+step = max(1, roadLayer.featureCount() / 100)
 
 RNodes = {}
 
 for feat in processing.features(roadLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	maxarc += 1
 	n_end = feat['to']
-	geom = feat.geometry() 
-		
-	# add nodes only if not existing
-	
+	geom = feat.geometry() 	
 	p = geom.vertexAt(0)
-	RNodes.setdefault(maxnode + feat['from'], p)
 	
+	if feat['dir'] == 2: RNodes[maxnode + feat['from']] = p				# only index bidirectional arcs
 
 	if geom.isMultipart(): geom = geom.asGeometryCollection()[-1]
 	p = geom.vertexAt(len(geom.asPolyline())-1)
-	RNodes.setdefault(maxnode + feat['to'], p)
+	if feat['dir'] == 2: RNodes[maxnode + feat['to']] = p				# only index bidirectional arcs
 
 	outFeat.setGeometry(geom)
 
@@ -158,9 +161,7 @@ for feat in processing.features(roadLayer):
 	resdict['cost'] = feat[Cost]
 	resdict['dir'] = feat['dir']
 		
-	attrs = [resdict[x] for x in field_names]
-
-	outFeat.setAttributes(attrs)
+	outFeat.setAttributes([resdict[x] for x in field_names])
 	writer.addFeature(outFeat)
 
 
@@ -170,14 +171,9 @@ for feat in processing.features(roadLayer):
 progress.setText('Index road nodes')
 
 roadindex = QgsSpatialIndex()
-feat = QgsFeature()
-
 
 for k,v in RNodes.iteritems():
-
-	feat.setGeometry(QgsGeometry.fromPoint(v))
-	feat.setFeatureId(k)
-	roadindex.insertFeature(feat)
+	indexPoint(roadindex, k, v)
 
 progress.setText('Connections')
 
@@ -190,11 +186,11 @@ resdict["mode"] = resdict['agency'] = 'parking'
 resdict["dir"] = 1
 
 parkingLayer = processing.getObject(Parkings)
-n = parkingLayer.featureCount()
+step = max(1, parkingLayer.featureCount() / 100)
 l = 0
 
 for feat in processing.features(parkingLayer):
-	progress.setPercentage(int(100*l/n))
+	if l % step == 0: progress.setPercentage(l/step)
 	l+=1
 	
 	
@@ -221,6 +217,7 @@ for feat in processing.features(parkingLayer):
 			
 			maxarc += 1
 			resdict['arcid'] = maxarc
+			resdict['rid'] = maxarc
 			resdict['from'] = i
 			resdict['to'] = roadnode
 			resdict['long_name'] = Nodes[i][1] + ' / ' + prname
